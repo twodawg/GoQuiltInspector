@@ -1762,8 +1762,16 @@ function createInitialScreenTexture() {
 function renderVRFrame() {
   if (!vrScene || !vrCamera || !vrRenderer) return;
 
-  // Update camera position based on orbit angles (desktop only)
-  if (!vrRenderer.xr.isPresenting) {
+  if (vrRenderer.xr.isPresenting) {
+    // VR mode: get the actual XR camera from Three.js
+    const xrCamera = vrRenderer.xr.getCamera();
+    const camPos = xrCamera.position;
+
+    // In VR, the screen is at origin (0,0,0) facing +Z
+    // Camera position relative to screen determines which view to show
+    updateScreenTexture(camPos.x, camPos.y);
+  } else {
+    // Desktop mode: orbit camera with mouse
     const distance = parseFloat(document.getElementById('vrDistance').value) || 1.5;
     const x = Math.sin(vrOrbitAngle.x) * Math.cos(vrOrbitAngle.y) * distance;
     const y = Math.sin(vrOrbitAngle.y) * distance;
@@ -1772,7 +1780,6 @@ function renderVRFrame() {
     vrCamera.position.set(x, y, -z);
     vrCamera.lookAt(0, 0, 0);
 
-    // Update screen texture based on camera position
     updateScreenTexture(x, y);
   }
 
