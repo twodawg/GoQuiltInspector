@@ -45,6 +45,56 @@ function downloadDataUrl(dataUrl, filename) {
   downloadBlob(new Blob([bytes], { type: 'image/png' }), filename);
 }
 
+// ─── Tab Switching ───────────────────────────────────────────────
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    const mode = tab.dataset.tab;
+
+    document.getElementById('inspectorSidebar').classList.toggle('hidden', mode !== 'inspector');
+    document.getElementById('generatorSidebar').classList.toggle('hidden', mode !== 'generator');
+    document.getElementById('vrSidebar').classList.toggle('hidden', mode !== 'vr');
+    document.getElementById('inspectorMain').classList.toggle('hidden', mode !== 'inspector');
+    document.getElementById('generatorMain').classList.toggle('hidden', mode !== 'generator');
+    document.getElementById('vrMain').classList.toggle('hidden', mode !== 'vr');
+
+    // Initialize VR scene when VR tab becomes active
+    if (mode === 'vr' && typeof initVRScene === 'function') {
+      requestAnimationFrame(() => {
+        if (vrQuiltImage && !vrRenderer) {
+          initVRScene();
+        } else if (vrRenderer) {
+          // Resize renderer when tab becomes visible
+          const container = document.getElementById('vr-canvas').parentElement;
+          if (container && vrRenderer && vrCamera) {
+            vrRenderer.setSize(container.clientWidth, container.clientHeight);
+            vrCamera.aspect = container.clientWidth / container.clientHeight;
+            vrCamera.updateProjectionMatrix();
+          }
+        }
+      });
+    }
+  });
+});
+
+// ─── Window Resize ───────────────────────────────────────────────
+window.addEventListener('resize', () => {
+  if (quiltImage) renderQuiltPreview();
+  if (sbsImage) {
+    scaleCanvas(sbsPreview, sbsPreview.parentElement);
+    scaleCanvas(splitPreview, splitPreview.parentElement);
+  }
+  if (vrRenderer && vrCamera) {
+    const container = document.getElementById('vr-canvas').parentElement;
+    if (container) {
+      vrRenderer.setSize(container.clientWidth, container.clientHeight);
+      vrCamera.aspect = container.clientWidth / container.clientHeight;
+      vrCamera.updateProjectionMatrix();
+    }
+  }
+});
+
 function setStatus(state, text) {
   const dot = document.getElementById('statusDot');
   const label = document.getElementById('statusText');
