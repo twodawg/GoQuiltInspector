@@ -737,7 +737,7 @@
 </div>
 
 <!-- Three.js for VR -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r152/three.min.js"></script>
 
 <script>
 // ─── Device Presets ──────────────────────────────────────────────
@@ -1683,14 +1683,29 @@ function initVRScene() {
   const screenGeometry = new THREE.PlaneGeometry(screenW, screenH);
 
   // Create texture for the screen
-  vrScreenTexture = new THREE.CanvasTexture(createInitialScreenTexture());
+  const initialCanvas = createInitialScreenTexture();
+  vrScreenTexture = new THREE.CanvasTexture(initialCanvas);
   vrScreenTexture.minFilter = THREE.LinearFilter;
   vrScreenTexture.magFilter = THREE.LinearFilter;
+  vrScreenTexture.needsUpdate = true;
 
   vrScreenMaterial = new THREE.MeshBasicMaterial({
     map: vrScreenTexture,
-    side: THREE.DoubleSide
+    side: THREE.DoubleSide,
+    color: 0xffffff
   });
+
+  // Debug: add a bright border quad so we can see the screen even if texture fails
+  const debugGeo = new THREE.PlaneGeometry(screenW + 0.1, screenH + 0.1);
+  const debugMat = new THREE.MeshBasicMaterial({
+    color: 0x6c63ff,
+    side: THREE.DoubleSide,
+    transparent: true,
+    opacity: 0.15
+  });
+  const debugMesh = new THREE.Mesh(debugGeo, debugMat);
+  debugMesh.position.set(0, 0, screenZ - 0.005);
+  vrScene.add(debugMesh);
 
   vrScreenMesh = new THREE.Mesh(screenGeometry, vrScreenMaterial);
   vrScreenMesh.position.set(0, 0, screenZ);
