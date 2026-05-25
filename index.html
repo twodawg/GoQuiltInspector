@@ -1645,11 +1645,12 @@ function initVRScene() {
 
   // Scene
   vrScene = new THREE.Scene();
-  vrScene.background = new THREE.Color(0x0a0a0f);
+  vrScene.background = new THREE.Color(0x111118);
 
-  // Camera
+  // Camera — positioned for desktop preview; VR overrides this
   vrCamera = new THREE.PerspectiveCamera(70, container.clientWidth / container.clientHeight, 0.01, 100);
-  vrCamera.position.set(0, 0, -1.5);
+  vrCamera.position.set(0, 0, 1.5);
+  vrCamera.lookAt(0, 0, -1.5);
 
   // Renderer
   vrRenderer = new THREE.WebGLRenderer({
@@ -1662,16 +1663,23 @@ function initVRScene() {
   vrRenderer.xr.enabled = true;
 
   // Lighting
-  const ambientLight = new THREE.AmbientLight(0xffffff, 1);
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
   vrScene.add(ambientLight);
+  const dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
+  dirLight.position.set(0, 0, 3);
+  vrScene.add(dirLight);
 
   // Screen dimensions
-  const screenSize = parseFloat(document.getElementById('vrScreenSize').value) || 2;
+  const screenSize = parseFloat(document.getElementById('vrScreenSize').value) || 1.5;
   const aspect = vrTileW / vrTileH;
   const screenW = screenSize;
   const screenH = screenSize / aspect;
 
-  // Create screen mesh
+  // In WebXR, camera starts at (0,0,0) facing -Z
+  // Place the screen at z = -1.5 (1.5m in front of the user)
+  const screenZ = -1.5;
+
+  // Create screen mesh — faces -Z (toward the user at origin)
   const screenGeometry = new THREE.PlaneGeometry(screenW, screenH);
 
   // Create texture for the screen
@@ -1685,25 +1693,40 @@ function initVRScene() {
   });
 
   vrScreenMesh = new THREE.Mesh(screenGeometry, vrScreenMaterial);
-  vrScreenMesh.position.z = 0;
+  vrScreenMesh.position.set(0, 0, screenZ);
   vrScene.add(vrScreenMesh);
 
+  // Store screen reference position for parallax calc
+  vrScreenMesh.userData.screenCenter = new THREE.Vector3(0, 0, screenZ);
+  vrScreenMesh.userData.screenW = screenW;
+  vrScreenMesh.userData.screenH = screenH;
+
   // Add border/frame around screen
-  const frameGeometry = new THREE.PlaneGeometry(screenW + 0.05, screenH + 0.05);
+  const frameGeometry = new THREE.PlaneGeometry(screenW + 0.08, screenH + 0.08);
   const frameMaterial = new THREE.MeshBasicMaterial({
     color: 0x6c63ff,
     side: THREE.DoubleSide,
     transparent: true,
-    opacity: 0.3
+    opacity: 0.5
   });
   const frameMesh = new THREE.Mesh(frameGeometry, frameMaterial);
-  frameMesh.position.z = -0.001;
+  frameMesh.position.set(0, 0, screenZ - 0.01);
   vrScene.add(frameMesh);
 
-  // Add grid helper on floor
-  const gridHelper = new THREE.GridHelper(10, 20, 0x2a2a3e, 0x1e1e2e);
-  gridHelper.rotation.x = Math.PI / 2;
-  gridHelper.position.y = -screenH / 2 - 1;
+  // Floor
+  const floorGeo = new THREE.PlaneGeometry(10, 10);
+  const floorMat = new THREE.MeshBasicMaterial({
+    color: 0x1a1a2e,
+    side: THREE.DoubleSide
+  });
+  const floor = new THREE.Mesh(floorGeo, floorMat);
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.set(0, -2, screenZ);
+  vrScene.add(floor);
+
+  // Grid on floor
+  const gridHelper = new THREE.GridHelper(10, 20, 0x2a2a4e, 0x1a1a2e);
+  gridHelper.position.set(0, -1.99, screenZ);
   vrScene.add(gridHelper);
 
   // Start render loop
@@ -1760,16 +1783,19 @@ function createInitialScreenTexture() {
 }
 
 function renderVRFrame() {
-  if (!vrScene || !vrCamera || !vrRenderer) return;
+  if (!vrScene || !vrCamera || !vrRenderer || !vrScreenMesh) return;
 
   if (vrRenderer.xr.isPresenting) {
     // VR mode: get the actual XR camera from Three.js
     const xrCamera = vrRenderer.xr.getCamera();
     const camPos = xrCamera.position;
 
-    // In VR, the screen is at origin (0,0,0) facing +Z
-    // Camera position relative to screen determines which view to show
-    updateScreenTexture(camPos.x, camPos.y);
+    // Calculate position relative to screen center
+    const screenCenter = vrScreenMesh.userData.screenCenter;
+    const relX = camPos.x - screenCenter.x;
+    const relY = camPos.y - screenCenter.y;
+
+    updateScreenTexture(relX, relY);
   } else {
     // Desktop mode: orbit camera with mouse
     const distance = parseFloat(document.getElementById('vrDistance').value) || 1.5;
@@ -1778,7 +1804,7 @@ function renderVRFrame() {
     const z = Math.cos(vrOrbitAngle.x) * Math.cos(vrOrbitAngle.y) * distance;
 
     vrCamera.position.set(x, y, -z);
-    vrCamera.lookAt(0, 0, 0);
+    vrCamera.lookAt(0, 0, -1.5);
 
     updateScreenTexture(x, y);
   }
@@ -1787,10 +1813,8 @@ function renderVRFrame() {
 }
 
 function updateScreenTexture(cameraX, cameraY) {
-  const screenSize = parseFloat(document.getElementById('vrScreenSize').value) || 2;
-  const aspect = vrTileW / vrTileH;
-  const screenW = screenSize;
-  const screenH = screenSize / aspect;
+  const screenW = vrScreenMesh.userData.screenW || 1.5;
+  const screenH = vrScreenMesh.userData.screenH || 1;
 
   // Map camera position to view index
   // Camera moves right (+X) → see left side of quilt (lower column index)
