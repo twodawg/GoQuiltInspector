@@ -1,0 +1,1917 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Go Quilt Inspector</title>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #14141f;
+    --surface2: #1e1e2e;
+    --border: #2a2a3e;
+    --accent: #6c63ff;
+    --accent2: #ff6584;
+    --text: #e0e0e8;
+    --text-dim: #8888a0;
+    --success: #4ade80;
+    --radius: 8px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  header {
+    padding: 1rem 2rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--surface);
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+
+  header h1 {
+    font-size: 1.4rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+
+  header h1 span { color: var(--accent); }
+
+  .badge {
+    font-size: 0.7rem;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    padding: 0.25rem 0.6rem;
+    border-radius: 99px;
+    color: var(--text-dim);
+  }
+
+  .tabs {
+    display: flex;
+    gap: 0;
+    background: var(--surface2);
+    border-radius: var(--radius);
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+
+  .tab {
+    padding: 0.5rem 1.2rem;
+    font-size: 0.85rem;
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    color: var(--text-dim);
+    font-family: inherit;
+    transition: all 0.15s;
+  }
+
+  .tab:hover { color: var(--text); background: rgba(108,99,255,0.1); }
+  .tab.active { background: var(--accent); color: white; }
+
+  .app {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    grid-template-rows: auto 1fr;
+    min-height: calc(100vh - 60px);
+  }
+
+  .sidebar {
+    grid-row: 1 / -1;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 1.5rem;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+
+  .section-title {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-dim);
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+  }
+
+  .drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 2rem 1rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: var(--surface2);
+  }
+
+  .drop-zone:hover, .drop-zone.drag-over {
+    border-color: var(--accent);
+    background: rgba(108, 99, 255, 0.05);
+  }
+
+  .drop-zone .icon { font-size: 2rem; margin-bottom: 0.5rem; }
+  .drop-zone p { font-size: 0.85rem; color: var(--text-dim); }
+  .drop-zone .formats { font-size: 0.7rem; color: var(--text-dim); margin-top: 0.5rem; opacity: 0.6; }
+
+  .meta-group { display: flex; flex-direction: column; gap: 0.5rem; }
+
+  .meta-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.4rem 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.85rem;
+  }
+
+  .meta-row .label { color: var(--text-dim); }
+  .meta-row .value { font-weight: 500; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.8rem; }
+  .meta-row .value.device { color: var(--success); }
+
+  .control-group { display: flex; flex-direction: column; gap: 0.5rem; }
+
+  .control-group label {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+  }
+
+  .control-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+
+  .control-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+
+  input[type="number"], select, input[type="text"], input[type="url"] {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 0.4rem 0.6rem;
+    border-radius: var(--radius);
+    font-size: 0.85rem;
+    width: 100%;
+    font-family: inherit;
+  }
+
+  input[type="number"]:focus, select:focus, input[type="text"]:focus, input[type="url"]:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+
+  input[type="range"] {
+    width: 100%;
+    accent-color: var(--accent);
+  }
+
+  .btn {
+    padding: 0.5rem 1rem;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-family: inherit;
+    transition: all 0.15s;
+    text-align: center;
+  }
+
+  .btn:hover { border-color: var(--accent); background: rgba(108, 99, 255, 0.1); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: white; }
+  .btn.primary:hover { background: #5b52ee; }
+  .btn.record { background: #dc2626; border-color: #dc2626; color: white; }
+  .btn.record:hover { background: #b91c1c; }
+  .btn.stop { background: #f59e0b; border-color: #f59e0b; color: #000; }
+  .btn.generate { background: var(--success); border-color: var(--success); color: #000; font-weight: 600; }
+  .btn.generate:hover { background: #22c55e; }
+  .btn.vr { background: #8b5cf6; border-color: #8b5cf6; color: white; }
+  .btn.vr:hover { background: #7c3aed; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .progress-bar {
+    width: 100%;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 0.5rem;
+  }
+
+  .progress-bar .fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 2px;
+    width: 0%;
+    transition: width 0.1s linear;
+  }
+
+  .progress-bar .fill.recording {
+    background: var(--accent2);
+  }
+
+  .tile-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+    gap: 4px;
+    max-height: 300px;
+    overflow-y: auto;
+    padding: 0.25rem;
+  }
+
+  .tile-thumb {
+    aspect-ratio: 1;
+    border-radius: 4px;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: border-color 0.15s;
+    object-fit: cover;
+    width: 100%;
+  }
+
+  .tile-thumb:hover { border-color: var(--accent); }
+  .tile-thumb.active { border-color: var(--accent2); }
+
+  .main {
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    overflow-y: auto;
+  }
+
+  .viewer-container {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    position: relative;
+    flex: 1;
+    min-height: 400px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .viewer-container canvas {
+    max-width: 100%;
+    max-height: 100%;
+    display: block;
+  }
+
+  .viewer-overlay {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+  }
+
+  .viewer-overlay .placeholder {
+    text-align: center;
+    color: var(--text-dim);
+  }
+
+  .viewer-overlay .placeholder .icon { font-size: 3rem; margin-bottom: 1rem; opacity: 0.3; }
+  .viewer-overlay .placeholder p { font-size: 0.9rem; }
+
+  .view-indicator {
+    position: absolute;
+    bottom: 1rem;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.7);
+    padding: 0.4rem 1rem;
+    border-radius: 99px;
+    font-size: 0.8rem;
+    font-family: 'SF Mono', monospace;
+    color: var(--accent);
+    pointer-events: none;
+    backdrop-filter: blur(8px);
+    display: none;
+  }
+
+  .panels-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+  }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem;
+    overflow: hidden;
+  }
+
+  .panel h3 {
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .panel canvas {
+    width: 100%;
+    border-radius: 4px;
+  }
+
+  .parallax-hint {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    margin-top: 0.5rem;
+    text-align: center;
+  }
+
+  .status-bar {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+    font-size: 0.8rem;
+    color: var(--text-dim);
+  }
+
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    display: inline-block;
+    margin-right: 0.3rem;
+  }
+
+  .status-dot.ready { background: var(--success); }
+  .status-dot.active { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+
+  .info-box {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.75rem;
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    line-height: 1.5;
+  }
+
+  .info-box strong { color: var(--text); }
+
+  .hidden { display: none !important; }
+
+  #vr-canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .vr-status {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    text-align: center;
+    padding: 0.5rem;
+  }
+
+  .vr-status.supported { color: var(--success); }
+  .vr-status.unsupported { color: var(--accent2); }
+
+  @media (max-width: 900px) {
+    .app {
+      grid-template-columns: 1fr;
+      grid-template-rows: auto auto;
+    }
+    .sidebar {
+      grid-row: auto;
+      border-right: none;
+      border-bottom: 1px solid var(--border);
+    }
+    .panels-row {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1><span>Go</span> Quilt Inspector</h1>
+  <div class="tabs">
+    <button class="tab active" data-tab="inspector">🔍 Inspector</button>
+    <button class="tab" data-tab="generator">🧊 Generator</button>
+    <button class="tab" data-tab="vr">🥽 VR Viewer</button>
+  </div>
+  <div class="status-bar">
+    <span><span class="status-dot" id="statusDot"></span><span id="statusText">Ready</span></span>
+    <span class="badge">v1.3</span>
+  </div>
+</header>
+
+<div class="app">
+  <!-- ═══════════════════ INSPECTOR SIDEBAR ═══════════════════ -->
+  <aside class="sidebar" id="inspectorSidebar">
+    <div>
+      <div class="section-title">Load Quilt</div>
+      <div class="drop-zone" id="dropZone">
+        <div class="icon">📐</div>
+        <p>Drop quilt image here<br>or click to browse</p>
+        <div class="formats">PNG, JPEG, GIF, WebP</div>
+      </div>
+      <input type="file" id="fileInput" accept="image/*" style="display:none">
+    </div>
+
+    <div>
+      <div class="section-title">Detected Metadata</div>
+      <div class="meta-group" id="metaGroup">
+        <div class="meta-row"><span class="label">File</span><span class="value" id="metaFile">—</span></div>
+        <div class="meta-row"><span class="label">Dimensions</span><span class="value" id="metaDims">—</span></div>
+        <div class="meta-row"><span class="label">Device</span><span class="value device" id="metaDevice">—</span></div>
+        <div class="meta-row"><span class="label">Grid</span><span class="value" id="metaGrid">—</span></div>
+        <div class="meta-row"><span class="label">Tile Size</span><span class="value" id="metaTile">—</span></div>
+        <div class="meta-row"><span class="label">Views</span><span class="value" id="metaViews">—</span></div>
+        <div class="meta-row"><span class="label">Aspect</span><span class="value" id="metaAspect">—</span></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">Grid Override</div>
+      <div class="control-group">
+        <div class="control-row">
+          <div class="control-col">
+            <label>Columns</label>
+            <input type="number" id="colInput" min="2" max="32" value="11">
+          </div>
+          <div class="control-col">
+            <label>Rows</label>
+            <input type="number" id="rowInput" min="2" max="32" value="6">
+          </div>
+        </div>
+        <button class="btn primary" id="applyGridBtn" disabled>Apply Grid</button>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">View Tiles <span id="tileCount" style="color:var(--text-dim)"></span></div>
+      <div class="tile-grid" id="tileGrid"></div>
+    </div>
+
+    <div>
+      <div class="section-title">Parallax Video Export</div>
+      <div class="control-group">
+        <div class="control-row">
+          <div class="control-col">
+            <label>Sweep Type</label>
+            <select id="sweepType">
+              <option value="horizontal">Horizontal (left→right)</option>
+              <option value="vertical">Vertical (top→bottom)</option>
+              <option value="diagonal">Diagonal</option>
+              <option value="pingpong" selected>Ping-Pong (back &amp; forth)</option>
+            </select>
+          </div>
+        </div>
+        <div class="control-row">
+          <div class="control-col">
+            <label>Duration (s)</label>
+            <input type="number" id="sweepDuration" min="1" max="60" value="4" step="0.5">
+          </div>
+          <div class="control-col">
+            <label>FPS</label>
+            <input type="number" id="sweepFps" min="15" max="60" value="30">
+          </div>
+        </div>
+        <div class="control-row">
+          <div class="control-col">
+            <label>Output Format</label>
+            <select id="sweepFormat">
+              <option value="webm">WebM (VP9)</option>
+              <option value="png_seq">PNG Sequence</option>
+            </select>
+          </div>
+        </div>
+        <div class="control-row">
+          <button class="btn record" id="recordBtn" disabled>⏺ Record</button>
+          <button class="btn stop" id="stopBtn" disabled>⏹ Stop</button>
+        </div>
+        <div class="progress-bar"><div class="fill" id="progressFill"></div></div>
+        <div id="exportStatus" style="font-size:0.75rem;color:var(--text-dim);margin-top:0.25rem;"></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ═══════════════════ GENERATOR SIDEBAR ═══════════════════ -->
+  <aside class="sidebar hidden" id="generatorSidebar">
+    <div>
+      <div class="section-title">Load SBS Image</div>
+      <div class="drop-zone" id="genDropZone">
+        <div class="icon">📸</div>
+        <p>Drop SBS image here<br>or click to browse</p>
+        <div class="formats">Side-by-side stereo pair (Left|Right)</div>
+      </div>
+      <input type="file" id="genFileInput" accept="image/*" style="display:none">
+    </div>
+
+    <div>
+      <div class="section-title">Source Info</div>
+      <div class="meta-group">
+        <div class="meta-row"><span class="label">File</span><span class="value" id="genFile">—</span></div>
+        <div class="meta-row"><span class="label">Dimensions</span><span class="value" id="genDims">—</span></div>
+        <div class="meta-row"><span class="label">View Size</span><span class="value" id="genViewSize">—</span></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">Target Device</div>
+      <div class="control-group">
+        <label>Device Preset</label>
+        <select id="deviceSelect">
+          <option value="custom">Custom</option>
+          <option value="go" selected>Looking Glass Go (11×6)</option>
+          <option value="portrait">Portrait (8×6)</option>
+          <option value="16l">16" Landscape (7×7)</option>
+          <option value="16p">16" Portrait (11×6)</option>
+          <option value="27l">27" Landscape (8×6)</option>
+          <option value="27p">27" Portrait (12×4)</option>
+          <option value="32l">32" Landscape (7×7)</option>
+          <option value="32p">32" Portrait (11×6)</option>
+          <option value="65">65" (8×9)</option>
+        </select>
+        <div class="control-row">
+          <div class="control-col">
+            <label>Columns</label>
+            <input type="number" id="genCols" min="2" max="32" value="11">
+          </div>
+          <div class="control-col">
+            <label>Rows</label>
+            <input type="number" id="genRows" min="2" max="32" value="6">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">Depth Settings</div>
+      <div class="control-group">
+        <div class="control-col">
+          <label>Parallax Strength: <span id="parallaxVal">50</span>%</label>
+          <input type="range" id="parallaxStrength" min="0" max="100" value="50">
+        </div>
+        <div class="control-col">
+          <label>Vertical Tilt: <span id="tiltVal">0</span>%</label>
+          <input type="range" id="verticalTilt" min="-50" max="50" value="0">
+        </div>
+        <div class="info-box">
+          <strong>Parallax Strength</strong> controls how much the left/right views shift across the grid. Higher = more dramatic 3D effect. <strong>Vertical Tilt</strong> adds subtle up/down motion for a floating feel.
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">Generate</div>
+      <div class="control-group">
+        <button class="btn generate" id="generateBtn" disabled>⚡ Generate Quilt</button>
+        <div class="progress-bar"><div class="fill" id="genProgress"></div></div>
+        <div id="genStatus" style="font-size:0.75rem;color:var(--text-dim);margin-top:0.25rem;"></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">Output</div>
+      <div class="meta-group">
+        <div class="meta-row"><span class="label">Quilt Size</span><span class="value" id="genQuiltSize">—</span></div>
+        <div class="meta-row"><span class="label">Tile Size</span><span class="value" id="genTileSize">—</span></div>
+        <div class="meta-row"><span class="label">Filename</span><span class="value" id="genFilename">—</span></div>
+      </div>
+      <button class="btn primary" id="downloadQuiltBtn" disabled style="margin-top:0.5rem">⬇ Download Quilt</button>
+    </div>
+  </aside>
+
+  <!-- ═══════════════════ VR VIEWER SIDEBAR ═══════════════════ -->
+  <aside class="sidebar hidden" id="vrSidebar">
+    <div>
+      <div class="section-title">Load Quilt for VR</div>
+      <div class="control-group">
+        <div class="control-col">
+          <label>blocks.glass URL</label>
+          <input type="url" id="vrUrl" placeholder="https://blocks.glass/user/12345">
+        </div>
+        <button class="btn primary" id="vrLoadBtn" style="margin-top:0.5rem">🔗 Load from URL</button>
+      </div>
+      <div class="info-box" style="margin-top:0.5rem">
+        <strong>Or</strong> use the drop zone below to load a quilt file directly.
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">Quilt Source</div>
+      <div class="drop-zone" id="vrDropZone">
+        <div class="icon">🧊</div>
+        <p>Drop quilt image here</p>
+        <div class="formats">PNG, JPEG, GIF, WebP</div>
+      </div>
+      <input type="file" id="vrFileInput" accept="image/*" style="display:none">
+    </div>
+
+    <div>
+      <div class="section-title">VR Settings</div>
+      <div class="meta-group">
+        <div class="meta-row"><span class="label">Quilt</span><span class="value" id="vrQuiltName">—</span></div>
+        <div class="meta-row"><span class="label">Grid</span><span class="value" id="vrGrid">—</span></div>
+        <div class="meta-row"><span class="label">Tiles</span><span class="value" id="vrTiles">—</span></div>
+      </div>
+      <div class="control-group" style="margin-top:0.5rem">
+        <div class="control-col">
+          <label>Screen Size (meters)</label>
+          <input type="number" id="vrScreenSize" min="0.5" max="10" value="2" step="0.1">
+        </div>
+        <div class="control-col">
+          <label>View Distance (meters)</label>
+          <input type="number" id="vrDistance" min="0.5" max="10" value="1.5" step="0.1">
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">Enter VR</div>
+      <div class="control-group">
+        <button class="btn vr" id="vrEnterBtn" disabled>🥽 Enter VR Mode</button>
+        <div class="vr-status" id="vrStatus">Checking WebXR support...</div>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">How it works</div>
+      <div class="info-box">
+        <strong>In VR:</strong> The quilt is rendered on a virtual screen. As you walk around it, different viewpoints are shown based on your position — just like a real Looking Glass display.
+        <br><br>
+        <strong>On Meta Quest:</strong> Open this page in the Quest Browser and tap "Enter VR Mode". Use controllers or hand tracking to interact.
+        <br><br>
+        <strong>On desktop:</strong> Use mouse to orbit around the virtual screen.
+      </div>
+    </div>
+  </aside>
+
+  <!-- ═══════════════════ INSPECTOR MAIN ═══════════════════ -->
+  <main class="main" id="inspectorMain">
+    <div class="panels-row">
+      <div class="panel">
+        <h3>📐 Quilt Preview</h3>
+        <canvas id="quiltPreview"></canvas>
+        <div class="parallax-hint">Click a tile in the sidebar to inspect</div>
+      </div>
+      <div class="panel">
+        <h3>👁️ Active View</h3>
+        <canvas id="viewPreview"></canvas>
+        <div class="parallax-hint">Shows the currently selected view tile</div>
+      </div>
+    </div>
+
+    <div class="viewer-container" id="viewerContainer">
+      <canvas id="parallaxCanvas"></canvas>
+      <div class="viewer-overlay" id="viewerOverlay">
+        <div class="placeholder">
+          <div class="icon">🧊</div>
+          <p>Load a quilt to start inspecting</p>
+        </div>
+      </div>
+      <div class="view-indicator" id="viewIndicator"></div>
+    </div>
+  </main>
+
+  <!-- ═══════════════════ GENERATOR MAIN ═══════════════════ -->
+  <main class="main hidden" id="generatorMain">
+    <div class="panels-row">
+      <div class="panel">
+        <h3>📸 Source SBS Image</h3>
+        <canvas id="sbsPreview"></canvas>
+        <div class="parallax-hint">Left view | Right view</div>
+      </div>
+      <div class="panel">
+        <h3>👁️ Split Preview</h3>
+        <canvas id="splitPreview"></canvas>
+        <div class="parallax-hint">Left (red overlay) vs Right (cyan overlay)</div>
+      </div>
+    </div>
+
+    <div class="viewer-container" id="genViewerContainer">
+      <canvas id="genPreviewCanvas"></canvas>
+      <div class="viewer-overlay" id="genViewerOverlay">
+        <div class="placeholder">
+          <div class="icon">🧊</div>
+          <p>Generate a quilt to preview</p>
+        </div>
+      </div>
+      <div class="view-indicator" id="genViewIndicator"></div>
+    </div>
+  </main>
+
+  <!-- ═══════════════════ VR VIEWER MAIN ═══════════════════ -->
+  <main class="main hidden" id="vrMain">
+    <div class="viewer-container" style="min-height: 600px;">
+      <canvas id="vr-canvas"></canvas>
+      <div class="viewer-overlay" id="vrOverlay">
+        <div class="placeholder">
+          <div class="icon">🥽</div>
+          <p>Load a quilt and enter VR mode</p>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Three.js for VR -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+<script>
+// ─── Device Presets ──────────────────────────────────────────────
+const DEVICES = {
+  go:     { name: 'Looking Glass Go',        cols: 11, rows: 6 },
+  portrait: { name: 'Looking Glass Portrait', cols: 8,  rows: 6 },
+  '16l':  { name: 'Looking Glass 16" (L)',   cols: 7,  rows: 7 },
+  '16p':  { name: 'Looking Glass 16" (P)',   cols: 11, rows: 6 },
+  '27l':  { name: 'Looking Glass 27" (L)',   cols: 8,  rows: 6 },
+  '27p':  { name: 'Looking Glass 27" (P)',   cols: 12, rows: 4 },
+  '32l':  { name: 'Looking Glass 32" (L)',   cols: 7,  rows: 7 },
+  '32p':  { name: 'Looking Glass 32" (P)',   cols: 11, rows: 6 },
+  '65':   { name: 'Looking Glass 65"',       cols: 8,  rows: 9 },
+};
+
+// ─── Tab Switching ───────────────────────────────────────────────
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    const mode = tab.dataset.tab;
+
+    document.getElementById('inspectorSidebar').classList.toggle('hidden', mode !== 'inspector');
+    document.getElementById('generatorSidebar').classList.toggle('hidden', mode !== 'generator');
+    document.getElementById('vrSidebar').classList.toggle('hidden', mode !== 'vr');
+    document.getElementById('inspectorMain').classList.toggle('hidden', mode !== 'inspector');
+    document.getElementById('generatorMain').classList.toggle('hidden', mode !== 'generator');
+    document.getElementById('vrMain').classList.toggle('hidden', mode !== 'vr');
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════
+//  INSPECTOR MODE
+// ═════════════════════════════════════════════════════════════════
+
+let quiltImage = null;
+let cols = 11, rows = 6;
+let tileW = 0, tileH = 0;
+let tiles = [];
+let activeTileIndex = 0;
+let mouseX = 0.5, mouseY = 0.5;
+let animFrame = null;
+let selectedTile = null;
+
+const dropZone        = document.getElementById('dropZone');
+const fileInput       = document.getElementById('fileInput');
+const colInput        = document.getElementById('colInput');
+const rowInput        = document.getElementById('rowInput');
+const applyGridBtn    = document.getElementById('applyGridBtn');
+const tileGridEl      = document.getElementById('tileGrid');
+const quiltPreview    = document.getElementById('quiltPreview');
+const viewPreview     = document.getElementById('viewPreview');
+const parallaxCanvas  = document.getElementById('parallaxCanvas');
+const viewerOverlay   = document.getElementById('viewerOverlay');
+const viewIndicator   = document.getElementById('viewIndicator');
+const viewerContainer = document.getElementById('viewerContainer');
+
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  if (e.dataTransfer.files.length) loadFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', () => { if (fileInput.files.length) loadFile(fileInput.files[0]); });
+
+function loadFile(file) {
+  if (!file.type.startsWith('image/')) return alert('Please select an image file.');
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = new Image();
+    img.onload = () => {
+      quiltImage = img;
+      processQuilt(file.name);
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function processQuilt(filename) {
+  const match = filename.match(/qs(\d+)x(\d+)a([\d.]+)/i);
+  if (match) {
+    cols = parseInt(match[1]);
+    rows = parseInt(match[2]);
+  } else {
+    const best = detectDevice(quiltImage.naturalWidth, quiltImage.naturalHeight);
+    if (best) { cols = best.cols; rows = best.rows; }
+  }
+
+  colInput.value = cols;
+  rowInput.value = rows;
+  computeTiles();
+  updateMetadata(filename);
+  renderAll();
+  setStatus('ready', 'Loaded: ' + filename);
+  applyGridBtn.disabled = false;
+  document.getElementById('recordBtn').disabled = false;
+}
+
+function detectDevice(w, h) {
+  let best = null, bestScore = Infinity;
+  for (const key in DEVICES) {
+    const d = DEVICES[key];
+    const tw = w / d.cols, th = h / d.rows;
+    const score = Math.abs(tw / th - 1) + Math.abs(tw - th) / Math.max(tw, th);
+    if (score < bestScore) { bestScore = score; best = d; }
+  }
+  return bestScore < 0.1 ? best : null;
+}
+
+function computeTiles() {
+  tileW = Math.floor(quiltImage.naturalWidth / cols);
+  tileH = Math.floor(quiltImage.naturalHeight / rows);
+  tiles = [];
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const canvas = document.createElement('canvas');
+      canvas.width = tileW;
+      canvas.height = tileH;
+      const ctx = canvas.getContext('2d');
+      const srcRow = rows - 1 - r;
+      ctx.drawImage(quiltImage, c * tileW, srcRow * tileH, tileW, tileH, 0, 0, tileW, tileH);
+      tiles.push(canvas);
+    }
+  }
+}
+
+function updateMetadata(filename) {
+  const name = filename.split('.').slice(0, -1).join('.');
+  document.getElementById('metaFile').textContent = name.length > 20 ? name.slice(0, 17) + '…' : name;
+  document.getElementById('metaDims').textContent = quiltImage.naturalWidth + ' × ' + quiltImage.naturalHeight;
+  const device = detectDevice(quiltImage.naturalWidth, quiltImage.naturalHeight);
+  document.getElementById('metaDevice').textContent = device ? device.name : 'Unknown';
+  document.getElementById('metaGrid').textContent = cols + ' × ' + rows;
+  document.getElementById('metaTile').textContent = tileW + ' × ' + tileH;
+  document.getElementById('metaViews').textContent = cols * rows;
+  document.getElementById('metaAspect').textContent = (tileW / tileH).toFixed(3);
+  document.getElementById('tileCount').textContent = '(' + (cols * rows) + ' tiles)';
+}
+
+applyGridBtn.addEventListener('click', () => {
+  cols = Math.max(2, Math.min(32, parseInt(colInput.value) || cols));
+  rows = Math.max(2, Math.min(32, parseInt(rowInput.value) || rows));
+  computeTiles();
+  document.getElementById('metaGrid').textContent = cols + ' × ' + rows;
+  document.getElementById('metaTile').textContent = tileW + ' × ' + tileH;
+  document.getElementById('metaViews').textContent = cols * rows;
+  document.getElementById('metaAspect').textContent = (tileW / tileH).toFixed(3);
+  document.getElementById('tileCount').textContent = '(' + (cols * rows) + ' tiles)';
+  renderAll();
+});
+
+function renderAll() {
+  renderQuiltPreview();
+  renderTileThumbnails();
+  renderViewPreview(0);
+  startParallaxLoop();
+  viewerOverlay.style.display = 'none';
+  viewIndicator.style.display = 'block';
+}
+
+function renderQuiltPreview() {
+  quiltPreview.width = quiltImage.naturalWidth;
+  quiltPreview.height = quiltImage.naturalHeight;
+  quiltPreview.getContext('2d').drawImage(quiltImage, 0, 0);
+  const maxW = quiltPreview.parentElement.clientWidth - 32;
+  const scale = Math.min(1, maxW / quiltPreview.width);
+  quiltPreview.style.width = (quiltPreview.width * scale) + 'px';
+  quiltPreview.style.height = (quiltPreview.height * scale) + 'px';
+}
+
+function renderTileThumbnails() {
+  tileGridEl.innerHTML = '';
+  tiles.forEach((tile, i) => {
+    const img = document.createElement('img');
+    img.src = tile.toDataURL('image/jpeg', 0.7);
+    img.className = 'tile-thumb' + (i === activeTileIndex ? ' active' : '');
+    img.title = 'View ' + i + ' [col ' + (i % cols) + ', row ' + Math.floor(i / cols) + ']';
+    img.addEventListener('click', () => {
+      selectedTile = i;
+      activeTileIndex = i;
+      renderViewPreview(i);
+      renderTileThumbnails();
+    });
+    tileGridEl.appendChild(img);
+  });
+}
+
+function renderViewPreview(index) {
+  viewPreview.width = tileW;
+  viewPreview.height = tileH;
+  viewPreview.getContext('2d').drawImage(tiles[index], 0, 0);
+  const maxW = viewPreview.parentElement.clientWidth - 48;
+  const scale = Math.min(1, maxW / viewPreview.width);
+  viewPreview.style.width = (viewPreview.width * scale) + 'px';
+  viewPreview.style.height = (viewPreview.height * scale) + 'px';
+}
+
+function startParallaxLoop() {
+  if (animFrame) cancelAnimationFrame(animFrame);
+  const loop = () => { renderParallax(); animFrame = requestAnimationFrame(loop); };
+  loop();
+}
+
+function renderParallax() {
+  const canvas = parallaxCanvas;
+  const ctx = canvas.getContext('2d');
+
+  if (selectedTile !== null) {
+    canvas.width = tileW;
+    canvas.height = tileH;
+    ctx.drawImage(tiles[selectedTile], 0, 0);
+    viewIndicator.textContent = 'View ' + selectedTile + ' [col ' + (selectedTile % cols) + ', row ' + Math.floor(selectedTile / cols) + ']';
+    fitCanvas(canvas, viewerContainer);
+    return;
+  }
+
+  const viewCol = (1 - mouseX) * (cols - 1);
+  const viewRow = mouseY * (rows - 1);
+  const c0 = Math.floor(viewCol), r0 = Math.floor(viewRow);
+  const c1 = Math.min(c0 + 1, cols - 1), r1 = Math.min(r0 + 1, rows - 1);
+  const fc = viewCol - c0, fr = viewRow - r0;
+
+  canvas.width = tileW;
+  canvas.height = tileH;
+
+  ctx.globalAlpha = (1 - fc) * (1 - fr);
+  ctx.drawImage(tiles[r0 * cols + c0], 0, 0);
+  ctx.globalAlpha = fc * (1 - fr);
+  ctx.drawImage(tiles[r0 * cols + c1], 0, 0);
+  ctx.globalAlpha = (1 - fc) * fr;
+  ctx.drawImage(tiles[r1 * cols + c0], 0, 0);
+  ctx.globalAlpha = fc * fr;
+  ctx.drawImage(tiles[r1 * cols + c1], 0, 0);
+  ctx.globalAlpha = 1;
+
+  viewIndicator.textContent = 'View ' + (r0 * cols + c0) + '–' + (r1 * cols + c1) + ' | col ' + viewCol.toFixed(1) + ' row ' + viewRow.toFixed(1);
+  fitCanvas(canvas, viewerContainer);
+}
+
+function fitCanvas(canvas, container) {
+  const maxW = container.clientWidth - 32;
+  const maxH = container.clientHeight - 32;
+  const scale = Math.min(1, maxW / canvas.width, maxH / canvas.height);
+  canvas.style.width = (canvas.width * scale) + 'px';
+  canvas.style.height = (canvas.height * scale) + 'px';
+}
+
+viewerContainer.addEventListener('mousemove', e => {
+  const rect = viewerContainer.getBoundingClientRect();
+  mouseX = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+  mouseY = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+});
+viewerContainer.addEventListener('mouseleave', () => { mouseX = 0.5; mouseY = 0.5; });
+viewerContainer.addEventListener('touchmove', e => {
+  e.preventDefault();
+  const rect = viewerContainer.getBoundingClientRect();
+  const touch = e.touches[0];
+  mouseX = Math.max(0, Math.min(1, (touch.clientX - rect.left) / rect.width));
+  mouseY = Math.max(0, Math.min(1, (touch.clientY - rect.top) / rect.height));
+}, { passive: false });
+
+// ─── Video Export ────────────────────────────────────────────────
+const recordBtn   = document.getElementById('recordBtn');
+const stopBtn     = document.getElementById('stopBtn');
+const progressFill = document.getElementById('progressFill');
+const exportStatus = document.getElementById('exportStatus');
+const sweepTypeEl = document.getElementById('sweepType');
+const sweepDurEl  = document.getElementById('sweepDuration');
+const sweepFpsEl  = document.getElementById('sweepFps');
+const sweepFormatEl = document.getElementById('sweepFormat');
+
+let isRecording = false;
+let mediaRecorder = null;
+let recordedChunks = [];
+
+recordBtn.addEventListener('click', startRecording);
+stopBtn.addEventListener('click', stopRecording);
+
+function getEasing(t) {
+  return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+}
+
+function getSweepCoords(type, t) {
+  const eased = getEasing(t);
+  switch (type) {
+    case 'horizontal': return { x: eased, y: 0.5 };
+    case 'vertical': return { x: 0.5, y: eased };
+    case 'diagonal': return { x: eased, y: eased };
+    case 'pingpong': {
+      const cycle = t < 0.5 ? t * 2 : 2 - t * 2;
+      return { x: getEasing(cycle), y: 0.5 };
+    }
+    default: return { x: eased, y: 0.5 };
+  }
+}
+
+function renderFrameToCanvas(type, t, tileArr, c, r, tw, th) {
+  const coords = getSweepCoords(type, t);
+  const viewCol = (1 - coords.x) * (c - 1);
+  const viewRow = coords.y * (r - 1);
+  const c0 = Math.floor(viewCol), r0 = Math.floor(viewRow);
+  const c1 = Math.min(c0 + 1, c - 1), r1 = Math.min(r0 + 1, r - 1);
+  const fc = viewCol - c0, fr = viewRow - r0;
+
+  const offscreen = document.createElement('canvas');
+  offscreen.width = tw;
+  offscreen.height = th;
+  const ctx = offscreen.getContext('2d');
+
+  ctx.globalAlpha = (1 - fc) * (1 - fr);
+  ctx.drawImage(tileArr[r0 * c + c0], 0, 0);
+  ctx.globalAlpha = fc * (1 - fr);
+  ctx.drawImage(tileArr[r0 * c + c1], 0, 0);
+  ctx.globalAlpha = (1 - fc) * fr;
+  ctx.drawImage(tileArr[r1 * c + c0], 0, 0);
+  ctx.globalAlpha = fc * fr;
+  ctx.drawImage(tileArr[r1 * c + c1], 0, 0);
+  ctx.globalAlpha = 1;
+
+  return offscreen;
+}
+
+async function startRecording() {
+  if (!quiltImage || isRecording) return;
+  isRecording = true;
+  recordBtn.disabled = true;
+  stopBtn.disabled = false;
+  progressFill.style.width = '0%';
+  progressFill.classList.add('recording');
+  exportStatus.textContent = 'Recording...';
+
+  const duration = parseFloat(sweepDurEl.value) || 4;
+  const fps = parseInt(sweepFpsEl.value) || 30;
+  const format = sweepFormatEl.value;
+  const sweepType = sweepTypeEl.value;
+  const totalFrames = Math.round(duration * fps);
+  const interval = 1000 / fps;
+
+  if (format === 'webm') {
+    await recordWebM(sweepType, totalFrames, interval, fps);
+  } else {
+    await recordPNGSequence(sweepType, totalFrames, interval);
+  }
+
+  finishRecording();
+}
+
+async function recordWebM(sweepType, totalFrames, interval, fps) {
+  const offscreen = document.createElement('canvas');
+  offscreen.width = tileW;
+  offscreen.height = tileH;
+
+  const stream = offscreen.captureStream(fps);
+  const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+    ? 'video/webm;codecs=vp9' : 'video/webm';
+
+  mediaRecorder = new MediaRecorder(stream, {
+    mimeType,
+    videoBitsPerSecond: 8000000
+  });
+  recordedChunks = [];
+
+  mediaRecorder.ondataavailable = e => {
+    if (e.data.size > 0) recordedChunks.push(e.data);
+  };
+  mediaRecorder.start();
+
+  for (let i = 0; i < totalFrames; i++) {
+    if (!isRecording) { mediaRecorder.stop(); return; }
+    const t = i / (totalFrames - 1);
+    const frame = renderFrameToCanvas(sweepType, t, tiles, cols, rows, tileW, tileH);
+    offscreen.getContext('2d').drawImage(frame, 0, 0);
+
+    progressFill.style.width = ((i + 1) / totalFrames * 100).toFixed(0) + '%';
+    exportStatus.textContent = 'Recording... ' + (i + 1) + '/' + totalFrames;
+    await new Promise(r => setTimeout(r, interval));
+  }
+
+  return new Promise(resolve => {
+    mediaRecorder.onstop = resolve;
+    mediaRecorder.stop();
+  });
+}
+
+async function recordPNGSequence(sweepType, totalFrames, interval) {
+  const pngFrames = [];
+  for (let i = 0; i < totalFrames; i++) {
+    if (!isRecording) return;
+    const t = i / (totalFrames - 1);
+    const frame = renderFrameToCanvas(sweepType, t, tiles, cols, rows, tileW, tileH);
+    pngFrames.push(frame.toDataURL('image/png'));
+
+    progressFill.style.width = ((i + 1) / totalFrames * 100).toFixed(0) + '%';
+    exportStatus.textContent = 'Capturing... ' + (i + 1) + '/' + totalFrames;
+    await new Promise(r => setTimeout(r, interval));
+  }
+
+  for (let i = 0; i < pngFrames.length; i++) {
+    downloadDataUrl(pngFrames[i], (document.getElementById('metaFile').textContent || 'quilt') + '_parallax_frame_' + String(i).padStart(4, '0') + '.png');
+    await new Promise(r => setTimeout(r, 100));
+  }
+  exportStatus.textContent = 'Exported ' + pngFrames.length + ' frames';
+}
+
+function finishRecording() {
+  isRecording = false;
+  recordBtn.disabled = false;
+  stopBtn.disabled = true;
+  progressFill.classList.remove('recording');
+
+  if (sweepFormatEl.value === 'webm' && recordedChunks.length > 0) {
+    const blob = new Blob(recordedChunks, { type: 'video/webm' });
+    const base = document.getElementById('metaFile').textContent || 'quilt';
+    downloadBlob(blob, base + '_parallax_' + sweepTypeEl.value + '_' + sweepDurEl.value + 's.webm');
+    exportStatus.textContent = 'Exported WebM';
+    recordedChunks = [];
+  }
+}
+
+function stopRecording() {
+  isRecording = false;
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.stop();
+    mediaRecorder = null;
+  }
+  recordBtn.disabled = false;
+  stopBtn.disabled = true;
+  progressFill.classList.remove('recording');
+  exportStatus.textContent = 'Recording stopped';
+}
+
+
+// ═════════════════════════════════════════════════════════════════
+//  GENERATOR MODE
+// ═════════════════════════════════════════════════════════════════
+
+let sbsImage = null;
+let leftView = null, rightView = null;
+let genQuiltCanvas = null;
+let genTiles = [];
+let genMouseX = 0.5, genMouseY = 0.5;
+let genAnimFrame = null;
+let genSelectedTile = null;
+
+const genDropZone    = document.getElementById('genDropZone');
+const genFileInput   = document.getElementById('genFileInput');
+const sbsPreview     = document.getElementById('sbsPreview');
+const splitPreview   = document.getElementById('splitPreview');
+const genPreviewCanvas = document.getElementById('genPreviewCanvas');
+const genViewerOverlay = document.getElementById('genViewerOverlay');
+const genViewerContainer = document.getElementById('genViewerContainer');
+const genViewIndicator = document.getElementById('genViewIndicator');
+const deviceSelect   = document.getElementById('deviceSelect');
+const genColsInput   = document.getElementById('genCols');
+const genRowsInput   = document.getElementById('genRows');
+const parallaxStrength = document.getElementById('parallaxStrength');
+const verticalTilt   = document.getElementById('verticalTilt');
+const generateBtn    = document.getElementById('generateBtn');
+const genProgress    = document.getElementById('genProgress');
+const genStatus      = document.getElementById('genStatus');
+const downloadQuiltBtn = document.getElementById('downloadQuiltBtn');
+
+genDropZone.addEventListener('click', () => genFileInput.click());
+genDropZone.addEventListener('dragover', e => { e.preventDefault(); genDropZone.classList.add('drag-over'); });
+genDropZone.addEventListener('dragleave', () => genDropZone.classList.remove('drag-over'));
+genDropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  genDropZone.classList.remove('drag-over');
+  if (e.dataTransfer.files.length) loadSBSImage(e.dataTransfer.files[0]);
+});
+genFileInput.addEventListener('change', () => { if (genFileInput.files.length) loadSBSImage(genFileInput.files[0]); });
+
+function loadSBSImage(file) {
+  if (!file.type.startsWith('image/')) return alert('Please select an image file.');
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = new Image();
+    img.onload = () => {
+      sbsImage = img;
+      const w = img.naturalWidth;
+      const h = img.naturalHeight;
+      const halfW = Math.floor(w / 2);
+
+      document.getElementById('genFile').textContent = file.name.split('.').slice(0, -1).join('.');
+      document.getElementById('genDims').textContent = w + ' × ' + h;
+      document.getElementById('genViewSize').textContent = halfW + ' × ' + h;
+
+      // Split into left/right
+      leftView = document.createElement('canvas');
+      leftView.width = halfW;
+      leftView.height = h;
+      leftView.getContext('2d').drawImage(img, 0, 0, halfW, h, 0, 0, halfW, h);
+
+      rightView = document.createElement('canvas');
+      rightView.width = halfW;
+      rightView.height = h;
+      rightView.getContext('2d').drawImage(img, halfW, 0, halfW, h, 0, 0, halfW, h);
+
+      // Render previews
+      sbsPreview.width = w;
+      sbsPreview.height = h;
+      sbsPreview.getContext('2d').drawImage(img, 0, 0);
+      scaleCanvas(sbsPreview, sbsPreview.parentElement);
+
+      renderSplitPreview(halfW, h);
+      updateGenOutput();
+
+      generateBtn.disabled = false;
+      setStatus('ready', 'SBS loaded: ' + file.name);
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function renderSplitPreview(w, h) {
+  splitPreview.width = w;
+  splitPreview.height = h;
+  const ctx = splitPreview.getContext('2d');
+
+  // Left view with red tint
+  ctx.globalAlpha = 0.5;
+  ctx.drawImage(leftView, 0, 0);
+  ctx.globalCompositeOperation = 'source-atop';
+  ctx.fillStyle = 'rgba(255,0,0,0.3)';
+  ctx.fillRect(0, 0, w, h);
+
+  // Right view with cyan tint
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.globalAlpha = 0.5;
+  ctx.drawImage(rightView, 0, 0);
+  ctx.globalCompositeOperation = 'source-atop';
+  ctx.fillStyle = 'rgba(0,255,255,0.3)';
+  ctx.fillRect(0, 0, w, h);
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.globalAlpha = 1;
+
+  // Center divider
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([5, 5]);
+  ctx.beginPath();
+  ctx.moveTo(w / 2, 0);
+  ctx.lineTo(w / 2, h);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  scaleCanvas(splitPreview, splitPreview.parentElement);
+}
+
+// Device select handler
+deviceSelect.addEventListener('change', () => {
+  const preset = deviceSelect.value;
+  if (preset !== 'custom' && DEVICES[preset]) {
+    genColsInput.value = DEVICES[preset].cols;
+    genRowsInput.value = DEVICES[preset].rows;
+  }
+});
+
+// Slider value displays
+parallaxStrength.addEventListener('input', () => {
+  document.getElementById('parallaxVal').textContent = parallaxStrength.value;
+});
+verticalTilt.addEventListener('input', () => {
+  document.getElementById('tiltVal').textContent = verticalTilt.value;
+});
+
+function updateGenOutput() {
+  if (!leftView) return;
+  const c = parseInt(genColsInput.value) || 11;
+  const r = parseInt(genRowsInput.value) || 6;
+  const tw = leftView.width;
+  const th = leftView.height;
+  document.getElementById('genQuiltSize').textContent = (c * tw) + ' × ' + (r * th);
+  document.getElementById('genTileSize').textContent = tw + ' × ' + th;
+  const base = document.getElementById('genFile').textContent || 'quilt';
+  document.getElementById('genFilename').textContent = base + '_qs' + c + 'x' + r + 'a1.0.png';
+}
+
+genColsInput.addEventListener('input', updateGenOutput);
+genRowsInput.addEventListener('input', updateGenOutput);
+
+// ─── Quilt Generation ────────────────────────────────────────────
+generateBtn.addEventListener('click', async () => {
+  if (!leftView || !rightView) return;
+
+  const targetCols = parseInt(genColsInput.value) || 11;
+  const targetRows = parseInt(genRowsInput.value) || 6;
+  const strength = parseInt(parallaxStrength.value) / 100; // 0-1
+  const tilt = parseInt(verticalTilt.value) / 100; // -0.5 to 0.5
+
+  const srcW = leftView.width;
+  const srcH = leftView.height;
+
+  generateBtn.disabled = true;
+  generateBtn.textContent = '⏳ Generating...';
+  genProgress.style.width = '0%';
+  genStatus.textContent = 'Generating ' + (targetCols * targetRows) + ' view tiles...';
+
+  genTiles = [];
+
+  // Generate each view tile
+  const totalTiles = targetCols * targetRows;
+
+  for (let i = 0; i < totalTiles; i++) {
+    const colIdx = i % targetCols;
+    const rowIdx = Math.floor(i / targetCols);
+
+    // Normalized position: -1 (left) to +1 (right), -1 (top) to +1 (bottom)
+    const normCol = (colIdx / (targetCols - 1)) * 2 - 1; // -1 to +1
+    const normRow = (rowIdx / (targetRows - 1)) * 2 - 1; // -1 to +1
+
+    // Horizontal shear offset based on view position
+    // Left view (normCol=-1) → full left image
+    // Right view (normCol=+1) → full right image
+    // Intermediate → blend with horizontal shift
+    const hOffset = normCol * strength * srcW * 0.5;
+    const vOffset = normRow * tilt * srcH * 0.15;
+
+    const tileCanvas = document.createElement('canvas');
+    tileCanvas.width = srcW;
+    tileCanvas.height = srcH;
+    const ctx = tileCanvas.getContext('2d');
+
+    // Interpolate between left and right views with shear
+    const blend = (normCol + 1) / 2; // 0 = left, 1 = right
+
+    // Draw blended view with horizontal offset
+    ctx.globalAlpha = 1 - blend;
+    ctx.drawImage(leftView, -hOffset, vOffset);
+    ctx.globalAlpha = blend;
+    ctx.drawImage(rightView, -hOffset, vOffset);
+    ctx.globalAlpha = 1;
+
+    genTiles.push(tileCanvas);
+
+    const pct = ((i + 1) / totalTiles * 100).toFixed(0);
+    genProgress.style.width = pct + '%';
+    genStatus.textContent = 'Generating... ' + (i + 1) + '/' + totalTiles;
+
+    // Yield to UI every few tiles
+    if (i % 10 === 0) await new Promise(r => setTimeout(r, 0));
+  }
+
+  // Assemble quilt
+  genStatus.textContent = 'Assembling quilt...';
+  genQuiltCanvas = document.createElement('canvas');
+  genQuiltCanvas.width = targetCols * srcW;
+  genQuiltCanvas.height = targetRows * srcH;
+  const quiltCtx = genQuiltCanvas.getContext('2d');
+
+  for (let r = 0; r < targetRows; r++) {
+    for (let c = 0; c < targetCols; c++) {
+      // Quilt ordering: row 0 in image = top row = highest view row index
+      // So quilt image row (targetRows - 1 - r) = view row r
+      const tileIdx = (targetRows - 1 - r) * targetCols + c;
+      quiltCtx.drawImage(genTiles[tileIdx], c * srcW, r * srcH);
+    }
+  }
+
+  // Show quilt preview in generator viewer
+  genViewerOverlay.style.display = 'none';
+  genViewIndicator.style.display = 'block';
+  startGenParallaxLoop(targetCols, targetRows, srcW, srcH);
+
+  genStatus.textContent = '✓ Quilt generated (' + totalTiles + ' tiles)';
+  genProgress.style.width = '100%';
+  generateBtn.textContent = '⚡ Generate Quilt';
+  generateBtn.disabled = false;
+  downloadQuiltBtn.disabled = false;
+
+  setStatus('ready', 'Quilt generated');
+});
+
+function startGenParallaxLoop(c, r, tw, th) {
+  if (genAnimFrame) cancelAnimationFrame(genAnimFrame);
+  const loop = () => {
+    renderGenParallax(c, r, tw, th);
+    genAnimFrame = requestAnimationFrame(loop);
+  };
+  loop();
+}
+
+function renderGenParallax(c, r, tw, th) {
+  const canvas = genPreviewCanvas;
+  const ctx = canvas.getContext('2d');
+
+  if (genSelectedTile !== null) {
+    canvas.width = tw;
+    canvas.height = th;
+    ctx.drawImage(genTiles[genSelectedTile], 0, 0);
+    genViewIndicator.textContent = 'View ' + genSelectedTile;
+    fitCanvas(canvas, genViewerContainer);
+    return;
+  }
+
+  const viewCol = (1 - genMouseX) * (c - 1);
+  const viewRow = genMouseY * (r - 1);
+  const c0 = Math.floor(viewCol), r0 = Math.floor(viewRow);
+  const c1 = Math.min(c0 + 1, c - 1), r1 = Math.min(r0 + 1, r - 1);
+  const fc = viewCol - c0, fr = viewRow - r0;
+
+  canvas.width = tw;
+  canvas.height = th;
+
+  ctx.globalAlpha = (1 - fc) * (1 - fr);
+  ctx.drawImage(genTiles[r0 * c + c0], 0, 0);
+  ctx.globalAlpha = fc * (1 - fr);
+  ctx.drawImage(genTiles[r0 * c + c1], 0, 0);
+  ctx.globalAlpha = (1 - fc) * fr;
+  ctx.drawImage(genTiles[r1 * c + c0], 0, 0);
+  ctx.globalAlpha = fc * fr;
+  ctx.drawImage(genTiles[r1 * c + c1], 0, 0);
+  ctx.globalAlpha = 1;
+
+  genViewIndicator.textContent = 'View ' + (r0 * c + c0) + '–' + (r1 * c + c1) + ' | col ' + viewCol.toFixed(1) + ' row ' + viewRow.toFixed(1);
+  fitCanvas(canvas, genViewerContainer);
+}
+
+genViewerContainer.addEventListener('mousemove', e => {
+  const rect = genViewerContainer.getBoundingClientRect();
+  genMouseX = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+  genMouseY = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+});
+genViewerContainer.addEventListener('mouseleave', () => { genMouseX = 0.5; genMouseY = 0.5; });
+genViewerContainer.addEventListener('touchmove', e => {
+  e.preventDefault();
+  const rect = genViewerContainer.getBoundingClientRect();
+  const touch = e.touches[0];
+  genMouseX = Math.max(0, Math.min(1, (touch.clientX - rect.left) / rect.width));
+  genMouseY = Math.max(0, Math.min(1, (touch.clientY - rect.top) / rect.height));
+}, { passive: false });
+
+// ─── Download Quilt ──────────────────────────────────────────────
+downloadQuiltBtn.addEventListener('click', () => {
+  if (!genQuiltCanvas) return;
+  const base = document.getElementById('genFile').textContent || 'quilt';
+  const c = parseInt(genColsInput.value) || 11;
+  const r = parseInt(genRowsInput.value) || 6;
+  const filename = base + '_qs' + c + 'x' + r + 'a1.0.png';
+
+  genQuiltCanvas.toBlob(blob => {
+    downloadBlob(blob, filename);
+    genStatus.textContent = 'Downloaded: ' + filename;
+  }, 'image/png');
+});
+
+
+// ═════════════════════════════════════════════════════════════════
+//  VR VIEWER MODE
+// ═════════════════════════════════════════════════════════════════
+
+let vrQuiltImage = null;
+let vrCols = 11, vrRows = 6;
+let vrTileW = 0, vrTileH = 0;
+let vrTiles = [];
+let vrScene, vrCamera, vrRenderer;
+let vrScreenMesh, vrScreenTexture, vrScreenMaterial;
+let vrIsVRMode = false;
+let vrOrbitAngle = { x: 0, y: 0 };
+let vrIsDragging = false;
+let vrLastMouse = { x: 0, y: 0 };
+
+const vrUrlInput     = document.getElementById('vrUrl');
+const vrLoadBtn      = document.getElementById('vrLoadBtn');
+const vrDropZone     = document.getElementById('vrDropZone');
+const vrFileInput    = document.getElementById('vrFileInput');
+const vrEnterBtn     = document.getElementById('vrEnterBtn');
+const vrStatus       = document.getElementById('vrStatus');
+const vrOverlay      = document.getElementById('vrOverlay');
+const vrCanvas       = document.getElementById('vr-canvas');
+
+// VR Drop zone
+vrDropZone.addEventListener('click', () => vrFileInput.click());
+vrDropZone.addEventListener('dragover', e => { e.preventDefault(); vrDropZone.classList.add('drag-over'); });
+vrDropZone.addEventListener('dragleave', () => vrDropZone.classList.remove('drag-over'));
+vrDropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  vrDropZone.classList.remove('drag-over');
+  if (e.dataTransfer.files.length) loadVRQuiltFile(e.dataTransfer.files[0]);
+});
+vrFileInput.addEventListener('change', () => { if (vrFileInput.files.length) loadVRQuiltFile(vrFileInput.files[0]); });
+
+// Load from blocks.glass URL
+vrLoadBtn.addEventListener('click', async () => {
+  const url = vrUrlInput.value.trim();
+  if (!url) return alert('Please enter a blocks.glass URL');
+
+  vrStatus.textContent = 'Loading from blocks.glass...';
+  vrStatus.className = 'vr-status';
+
+  try {
+    // Try to fetch the page and extract quilt URL
+    const response = await fetch(url, { mode: 'cors' });
+    if (!response.ok) throw new Error('Failed to fetch page');
+
+    const html = await response.text();
+
+    // Look for quilt image URL in the page
+    // blocks.glass uses data attributes or img tags with quilt URLs
+    const quiltUrlMatch = html.match(/(https?:\/\/[^"'<>\s]+\.(png|jpg|jpeg|webp))/i);
+    if (!quiltUrlMatch) {
+      // Try to find any image URL that might be the quilt
+      const allUrls = html.match(/(https?:\/\/dl\.blocks\.glass\/[^"'<>\s]+)/gi);
+      if (allUrls && allUrls.length > 0) {
+        loadVRQuiltFromUrl(allUrls[0]);
+        return;
+      }
+      throw new Error('Could not find quilt image URL on the page');
+    }
+
+    loadVRQuiltFromUrl(quiltUrlMatch[1]);
+  } catch (err) {
+    vrStatus.textContent = 'Error: ' + err.message;
+    vrStatus.className = 'vr-status unsupported';
+    console.error('Failed to load from blocks.glass:', err);
+
+    // Fallback: try direct URL if it looks like an image
+    if (url.match(/\.(png|jpg|jpeg|webp)$/i)) {
+      loadVRQuiltFromUrl(url);
+    } else {
+      alert('Could not extract quilt URL. Try copying the direct image URL from the page, or download the quilt and use the drop zone.');
+    }
+  }
+});
+
+function loadVRQuiltFromUrl(url) {
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.onload = () => {
+    vrQuiltImage = img;
+    processVRQuilt('blocks.glass quilt');
+  };
+  img.onerror = () => {
+    vrStatus.textContent = 'Failed to load image (CORS or invalid URL)';
+    vrStatus.className = 'vr-status unsupported';
+  };
+  img.src = url;
+}
+
+function loadVRQuiltFile(file) {
+  if (!file.type.startsWith('image/')) return alert('Please select an image file.');
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = new Image();
+    img.onload = () => {
+      vrQuiltImage = img;
+      processVRQuilt(file.name);
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function processVRQuilt(filename) {
+  const match = filename.match(/qs(\d+)x(\d+)a([\d.]+)/i);
+  if (match) {
+    vrCols = parseInt(match[1]);
+    vrRows = parseInt(match[2]);
+  } else {
+    const best = detectDevice(vrQuiltImage.naturalWidth, vrQuiltImage.naturalHeight);
+    if (best) { vrCols = best.cols; vrRows = best.rows; }
+  }
+
+  vrTileW = Math.floor(vrQuiltImage.naturalWidth / vrCols);
+  vrTileH = Math.floor(vrQuiltImage.naturalHeight / vrRows);
+
+  // Extract tiles
+  vrTiles = [];
+  for (let r = 0; r < vrRows; r++) {
+    for (let c = 0; c < vrCols; c++) {
+      const canvas = document.createElement('canvas');
+      canvas.width = vrTileW;
+      canvas.height = vrTileH;
+      const ctx = canvas.getContext('2d');
+      const srcRow = vrRows - 1 - r;
+      ctx.drawImage(vrQuiltImage, c * vrTileW, srcRow * vrTileH, vrTileW, vrTileH, 0, 0, vrTileW, vrTileH);
+      vrTiles.push(canvas);
+    }
+  }
+
+  // Update sidebar info
+  document.getElementById('vrQuiltName').textContent = filename.split('.').slice(0, -1).join('.');
+  document.getElementById('vrGrid').textContent = vrCols + ' × ' + vrRows;
+  document.getElementById('vrTiles').textContent = vrCols * vrRows;
+
+  // Initialize Three.js scene
+  initVRScene();
+
+  vrEnterBtn.disabled = false;
+  vrOverlay.style.display = 'none';
+  setStatus('ready', 'VR quilt loaded');
+}
+
+function initVRScene() {
+  // Clean up existing scene
+  if (vrRenderer) {
+    vrRenderer.dispose();
+  }
+
+  const container = vrCanvas.parentElement;
+
+  // Scene
+  vrScene = new THREE.Scene();
+  vrScene.background = new THREE.Color(0x0a0a0f);
+
+  // Camera
+  vrCamera = new THREE.PerspectiveCamera(70, container.clientWidth / container.clientHeight, 0.01, 100);
+  vrCamera.position.set(0, 0, -1.5);
+
+  // Renderer
+  vrRenderer = new THREE.WebGLRenderer({
+    canvas: vrCanvas,
+    antialias: true,
+    alpha: false
+  });
+  vrRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  vrRenderer.setSize(container.clientWidth, container.clientHeight);
+  vrRenderer.xr.enabled = true;
+
+  // Lighting
+  const ambientLight = new THREE.AmbientLight(0xffffff, 1);
+  vrScene.add(ambientLight);
+
+  // Screen dimensions
+  const screenSize = parseFloat(document.getElementById('vrScreenSize').value) || 2;
+  const aspect = vrTileW / vrTileH;
+  const screenW = screenSize;
+  const screenH = screenSize / aspect;
+
+  // Create screen mesh
+  const screenGeometry = new THREE.PlaneGeometry(screenW, screenH);
+
+  // Create texture for the screen
+  vrScreenTexture = new THREE.CanvasTexture(createInitialScreenTexture());
+  vrScreenTexture.minFilter = THREE.LinearFilter;
+  vrScreenTexture.magFilter = THREE.LinearFilter;
+
+  vrScreenMaterial = new THREE.MeshBasicMaterial({
+    map: vrScreenTexture,
+    side: THREE.DoubleSide
+  });
+
+  vrScreenMesh = new THREE.Mesh(screenGeometry, vrScreenMaterial);
+  vrScreenMesh.position.z = 0;
+  vrScene.add(vrScreenMesh);
+
+  // Add border/frame around screen
+  const frameGeometry = new THREE.PlaneGeometry(screenW + 0.05, screenH + 0.05);
+  const frameMaterial = new THREE.MeshBasicMaterial({
+    color: 0x6c63ff,
+    side: THREE.DoubleSide,
+    transparent: true,
+    opacity: 0.3
+  });
+  const frameMesh = new THREE.Mesh(frameGeometry, frameMaterial);
+  frameMesh.position.z = -0.001;
+  vrScene.add(frameMesh);
+
+  // Add grid helper on floor
+  const gridHelper = new THREE.GridHelper(10, 20, 0x2a2a3e, 0x1e1e2e);
+  gridHelper.rotation.x = Math.PI / 2;
+  gridHelper.position.y = -screenH / 2 - 1;
+  vrScene.add(gridHelper);
+
+  // Start render loop
+  vrRenderer.setAnimationLoop(renderVRFrame);
+
+  // Mouse orbit controls for desktop
+  vrCanvas.addEventListener('mousedown', e => {
+    vrIsDragging = true;
+    vrLastMouse = { x: e.clientX, y: e.clientY };
+  });
+  vrCanvas.addEventListener('mousemove', e => {
+    if (!vrIsDragging) return;
+    const dx = e.clientX - vrLastMouse.x;
+    const dy = e.clientY - vrLastMouse.y;
+    vrOrbitAngle.x -= dx * 0.005;
+    vrOrbitAngle.y -= dy * 0.005;
+    vrOrbitAngle.y = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, vrOrbitAngle.y));
+    vrLastMouse = { x: e.clientX, y: e.clientY };
+  });
+  vrCanvas.addEventListener('mouseup', () => { vrIsDragging = false; });
+  vrCanvas.addEventListener('mouseleave', () => { vrIsDragging = false; });
+
+  // Touch orbit controls
+  vrCanvas.addEventListener('touchstart', e => {
+    vrIsDragging = true;
+    vrLastMouse = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  }, { passive: true });
+  vrCanvas.addEventListener('touchmove', e => {
+    if (!vrIsDragging) return;
+    const dx = e.touches[0].clientX - vrLastMouse.x;
+    const dy = e.touches[0].clientY - vrLastMouse.y;
+    vrOrbitAngle.x -= dx * 0.005;
+    vrOrbitAngle.y -= dy * 0.005;
+    vrOrbitAngle.y = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, vrOrbitAngle.y));
+    vrLastMouse = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  }, { passive: true });
+  vrCanvas.addEventListener('touchend', () => { vrIsDragging = false; });
+
+  // Check WebXR support
+  checkWebXRSupport();
+}
+
+function createInitialScreenTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = vrTileW;
+  canvas.height = vrTileH;
+  const ctx = canvas.getContext('2d');
+
+  // Show center view
+  const centerIdx = Math.floor((vrRows * vrCols) / 2);
+  ctx.drawImage(vrTiles[centerIdx], 0, 0);
+
+  return canvas;
+}
+
+function renderVRFrame() {
+  if (!vrScene || !vrCamera || !vrRenderer) return;
+
+  // Update camera position based on orbit angles (desktop only)
+  if (!vrRenderer.xr.isPresenting) {
+    const distance = parseFloat(document.getElementById('vrDistance').value) || 1.5;
+    const x = Math.sin(vrOrbitAngle.x) * Math.cos(vrOrbitAngle.y) * distance;
+    const y = Math.sin(vrOrbitAngle.y) * distance;
+    const z = Math.cos(vrOrbitAngle.x) * Math.cos(vrOrbitAngle.y) * distance;
+
+    vrCamera.position.set(x, y, -z);
+    vrCamera.lookAt(0, 0, 0);
+
+    // Update screen texture based on camera position
+    updateScreenTexture(x, y);
+  }
+
+  vrRenderer.render(vrScene, vrCamera);
+}
+
+function updateScreenTexture(cameraX, cameraY) {
+  const screenSize = parseFloat(document.getElementById('vrScreenSize').value) || 2;
+  const aspect = vrTileW / vrTileH;
+  const screenW = screenSize;
+  const screenH = screenSize / aspect;
+
+  // Map camera position to view index
+  // Camera moves right (+X) → see left side of quilt (lower column index)
+  // Camera moves left (-X) → see right side of quilt (higher column index)
+  // Camera moves up (+Y) → see top of quilt (lower row index)
+  // Camera moves down (-Y) → see bottom of quilt (higher row index)
+  const normX = Math.max(-1, Math.min(1, (cameraX / (screenW / 2))));
+  const normY = Math.max(-1, Math.min(1, (cameraY / (screenH / 2))));
+
+  const viewCol = ((1 - normX) / 2) * (vrCols - 1);
+  const viewRow = ((1 - normY) / 2) * (vrRows - 1);
+
+  const c0 = Math.floor(viewCol), r0 = Math.floor(viewRow);
+  const c1 = Math.min(c0 + 1, vrCols - 1), r1 = Math.min(r0 + 1, vrRows - 1);
+  const fc = viewCol - c0, fr = viewRow - r0;
+
+  const canvas = vrScreenTexture.image;
+  canvas.width = vrTileW;
+  canvas.height = vrTileH;
+  const ctx = canvas.getContext('2d');
+
+  // Bilinear blend
+  ctx.globalAlpha = (1 - fc) * (1 - fr);
+  ctx.drawImage(vrTiles[r0 * vrCols + c0], 0, 0);
+  ctx.globalAlpha = fc * (1 - fr);
+  ctx.drawImage(vrTiles[r0 * vrCols + c1], 0, 0);
+  ctx.globalAlpha = (1 - fc) * fr;
+  ctx.drawImage(vrTiles[r1 * vrCols + c0], 0, 0);
+  ctx.globalAlpha = fc * fr;
+  ctx.drawImage(vrTiles[r1 * vrCols + c1], 0, 0);
+  ctx.globalAlpha = 1;
+
+  vrScreenTexture.needsUpdate = true;
+}
+
+function checkWebXRSupport() {
+  if ('xr' in navigator) {
+    navigator.xr.isSessionSupported('immersive-vr').then(supported => {
+      if (supported) {
+        vrStatus.textContent = '✓ WebXR supported — Enter VR on Meta Quest';
+        vrStatus.className = 'vr-status supported';
+      } else {
+        vrStatus.textContent = '⚠ WebXR not supported — Desktop preview only';
+        vrStatus.className = 'vr-status unsupported';
+      }
+    }).catch(() => {
+      vrStatus.textContent = '⚠ WebXR check failed — Desktop preview only';
+      vrStatus.className = 'vr-status unsupported';
+    });
+  } else {
+    vrStatus.textContent = '✗ WebXR not available — Desktop preview only';
+    vrStatus.className = 'vr-status unsupported';
+  }
+}
+
+// Enter VR button
+vrEnterBtn.addEventListener('click', async () => {
+  if (!vrRenderer || !vrScene) return;
+
+  if ('xr' in navigator) {
+    try {
+      const session = await navigator.xr.requestSession('immersive-vr', {
+        optionalFeatures: ['local-floor', 'bounded-floor']
+      });
+
+      vrRenderer.xr.setSession(session);
+      vrIsVRMode = true;
+
+      session.addEventListener('end', () => {
+        vrIsVRMode = false;
+        vrEnterBtn.textContent = '🥽 Enter VR Mode';
+      });
+
+      vrEnterBtn.textContent = '🥽 In VR...';
+    } catch (err) {
+      vrStatus.textContent = 'VR Error: ' + err.message;
+      vrStatus.className = 'vr-status unsupported';
+    }
+  } else {
+    alert('WebXR is not supported in this browser. Try opening this page on a Meta Quest browser.');
+  }
+});
+
+
+// ═════════════════════════════════════════════════════════════════
+//  HELPERS
+// ═════════════════════════════════════════════════════════════════
+
+function scaleCanvas(canvas, parent) {
+  const maxW = parent.clientWidth - 32;
+  const scale = Math.min(1, maxW / canvas.width);
+  canvas.style.width = (canvas.width * scale) + 'px';
+  canvas.style.height = (canvas.height * scale) + 'px';
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function downloadDataUrl(dataUrl, filename) {
+  const byteString = atob(dataUrl.split(',')[1]);
+  const bytes = new Uint8Array(byteString.length);
+  for (let i = 0; i < byteString.length; i++) bytes[i] = byteString.charCodeAt(i);
+  downloadBlob(new Blob([bytes], { type: 'image/png' }), filename);
+}
+
+function setStatus(state, text) {
+  document.getElementById('statusDot').className = 'status-dot ' + state;
+  document.getElementById('statusText').textContent = text;
+}
+
+window.addEventListener('resize', () => {
+  if (quiltImage) renderQuiltPreview();
+  if (sbsImage) {
+    scaleCanvas(sbsPreview, sbsPreview.parentElement);
+    scaleCanvas(splitPreview, splitPreview.parentElement);
+  }
+  if (vrRenderer) {
+    const container = vrCanvas.parentElement;
+    vrRenderer.setSize(container.clientWidth, container.clientHeight);
+    vrCamera.aspect = container.clientWidth / container.clientHeight;
+    vrCamera.updateProjectionMatrix();
+  }
+});
+</script>
+
+</body>
+</html>
