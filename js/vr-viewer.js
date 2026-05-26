@@ -1,4 +1,5 @@
 // ─── VR Viewer Mode ──────────────────────────────────────────────
+// Quest-compatible WebXR viewer for Looking Glass quilt inspection
 
 let vrQuiltImage = null;
 let vrCols = 11, vrRows = 6;
@@ -168,12 +169,11 @@ function initVRModule() {
       vrScene = new THREE.Scene();
       vrScene.background = new THREE.Color(0x111118);
 
-      // Camera
+      // Camera — positioned at eye height for VR
       vrCamera = new THREE.PerspectiveCamera(70, w / h, 0.01, 100);
-      vrCamera.position.set(0, 0, 1.5);
+      vrCamera.position.set(0, 1.6, 0);
 
-      // Renderer — CRITICAL: xrCompatible: true required for Quest browser after 2025 Meta updates
-      // Without this, makeXRCompatible() fails silently and XR renders nothing (star field)
+      // Renderer — xrCompatible: true is REQUIRED for Quest browser
       vrRenderer = new THREE.WebGLRenderer({
         canvas: vrCanvas,
         antialias: false,
@@ -181,9 +181,9 @@ function initVRModule() {
         xrCompatible: true
       });
       vrRenderer.setPixelRatio(1);
-      vrRenderer.setSize(w, h, false);
+      vrRenderer.setSize(w, h); // third param (antialias) removed in r152+
       vrRenderer.xr.enabled = true;
-      console.log('[VR] Renderer created');
+      console.log('[VR] Renderer created with xrCompatible: true');
 
       // Verify WebGL context
       const gl = vrRenderer.getContext();
@@ -192,25 +192,19 @@ function initVRModule() {
 
       // ─── Scene Objects ─────────────────────────────────────────
 
-      // Bright test cube
+      // Bright test cube — positioned in front of camera
       const testGeo = new THREE.BoxGeometry(0.3, 0.3, 0.3);
       const testMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
       const testCube = new THREE.Mesh(testGeo, testMat);
-      testCube.position.set(1.2, 1.2, -0.5);
+      testCube.position.set(0, 1.6, -2);
       vrScene.add(testCube);
 
-      // Lighting
-      vrScene.add(new THREE.AmbientLight(0xffffff, 0.8));
-      const dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
-      dirLight.position.set(0, 0, 3);
-      vrScene.add(dirLight);
-
-      // Screen
+      // Screen — positioned at eye height, 2 meters in front
       const screenSize = parseFloat(document.getElementById('vrScreenSize').value) || 2;
       const aspect = vrTileW / vrTileH;
       const screenW = screenSize;
       const screenH = screenSize / aspect;
-      const screenZ = -1.5;
+      const screenZ = -2;
 
       // Persistent texture canvas
       vrScreenCanvas = document.createElement('canvas');
@@ -224,8 +218,8 @@ function initVRModule() {
       vrScreenMaterial = new THREE.MeshBasicMaterial({ map: vrScreenTexture, side: THREE.DoubleSide });
 
       vrScreenMesh = new THREE.Mesh(new THREE.PlaneGeometry(screenW, screenH), vrScreenMaterial);
-      vrScreenMesh.position.set(0, 0, screenZ);
-      vrScreenMesh.userData.screenCenter = new THREE.Vector3(0, 0, screenZ);
+      vrScreenMesh.position.set(0, 1.6, screenZ);
+      vrScreenMesh.userData.screenCenter = new THREE.Vector3(0, 1.6, screenZ);
       vrScreenMesh.userData.screenW = screenW;
       vrScreenMesh.userData.screenH = screenH;
       vrScene.add(vrScreenMesh);
@@ -235,7 +229,7 @@ function initVRModule() {
         new THREE.PlaneGeometry(screenW + 0.08, screenH + 0.08),
         new THREE.MeshBasicMaterial({ color: 0x6c63ff, side: THREE.DoubleSide, transparent: true, opacity: 0.5 })
       );
-      frameMesh.position.set(0, 0, screenZ - 0.01);
+      frameMesh.position.set(0, 1.6, screenZ - 0.01);
       vrScene.add(frameMesh);
 
       // Floor
@@ -244,15 +238,15 @@ function initVRModule() {
         new THREE.MeshBasicMaterial({ color: 0x1a1a2e, side: THREE.DoubleSide })
       );
       floor.rotation.x = -Math.PI / 2;
-      floor.position.set(0, -2, screenZ);
+      floor.position.set(0, 0, screenZ);
       vrScene.add(floor);
 
       // Grid
       const gridHelper = new THREE.GridHelper(10, 20, 0x2a2a4e, 0x1a1a2e);
-      gridHelper.position.set(0, -1.99, screenZ);
+      gridHelper.position.set(0, 0.01, screenZ);
       vrScene.add(gridHelper);
 
-      // Debug panel
+      // Debug panel — positioned above screen
       vrDebugCanvas = document.createElement('canvas');
       vrDebugCanvas.width = 512;
       vrDebugCanvas.height = 256;
@@ -263,7 +257,7 @@ function initVRModule() {
         new THREE.PlaneGeometry(1.2, 0.6),
         new THREE.MeshBasicMaterial({ map: vrDebugTexture, transparent: true, side: THREE.DoubleSide })
       );
-      vrDebugMesh.position.set(0, 1.3, screenZ + 0.02);
+      vrDebugMesh.position.set(0, 2.8, screenZ + 0.02);
       vrScene.add(vrDebugMesh);
 
       // Initial texture
@@ -271,15 +265,10 @@ function initVRModule() {
 
       // ─── Render Loop ───────────────────────────────────────────
       vrRenderer.setAnimationLoop(renderVRFrame);
-      console.log('[VR] setAnimationLoop registered, canvas:', vrCanvas.width, 'x', vrCanvas.height);
+      console.log('[VR] setAnimationLoop registered');
 
-      // Verify first render works
+      // Force one render immediately
       vrRenderer.render(vrScene, vrCamera);
-      console.log('[VR] First render done, checking for errors...');
-      const glErr = gl.getError();
-      if (glErr !== 0) console.error('[VR] WebGL error after first render:', glErr);
-      else console.log('[VR] No WebGL errors');
-
       console.log('[VR] Scene initialized');
 
       // ─── Desktop Orbit Controls ────────────────────────────────
@@ -337,13 +326,13 @@ function initVRModule() {
 
       // Desktop orbit camera — only when NOT in XR
       if (!vrRenderer.xr.isPresenting) {
-        const dist = parseFloat(document.getElementById('vrDistance').value) || 1.5;
+        const dist = parseFloat(document.getElementById('vrDistance').value) || 2;
         vrCamera.position.set(
           Math.sin(vrOrbitAngle.x) * Math.cos(vrOrbitAngle.y) * dist,
-          Math.sin(vrOrbitAngle.y) * dist,
+          1.6 + Math.sin(vrOrbitAngle.y) * dist * 0.3,
           Math.cos(vrOrbitAngle.x) * Math.cos(vrOrbitAngle.y) * dist
         );
-        vrCamera.lookAt(0, 0, -1.5);
+        vrCamera.lookAt(0, 1.6, -2);
       }
 
       // Update screen texture
@@ -432,18 +421,44 @@ function initVRModule() {
       }
 
       console.log('[VR] Requesting XR session...');
-      const session = await navigator.xr.requestSession('immersive-vr');
+
+      // CRITICAL: Ensure canvas has valid dimensions before XR session
+      const container = vrCanvas.parentElement;
+      vrCanvas.width = container.clientWidth || 800;
+      vrCanvas.height = container.clientHeight || 600;
+      vrRenderer.setSize(vrCanvas.width, vrCanvas.height); // third param removed in r152+
+      console.log('[VR] Canvas resized to', vrCanvas.width, 'x', vrCanvas.height);
+
+      // Make context XR compatible explicitly
+      const gl = vrRenderer.getContext();
+      if (gl && gl.makeXRCompatible) {
+        try {
+          await gl.makeXRCompatible();
+          console.log('[VR] makeXRCompatible succeeded');
+        } catch (e) {
+          console.warn('[VR] makeXRCompatible failed (may already be compatible):', e);
+        }
+      }
+
+      // Request XR session
+      const session = await navigator.xr.requestSession('immersive-vr', {
+        optionalFeatures: ['local-floor', 'bounded-floor']
+      });
       currentXrSession = session;
       console.log('[VR] Session obtained');
 
+      // Set up XR render state — r152 API
+      const refSpace = await session.requestReferenceSpace('local');
+      vrRenderer.xr.setReferenceSpace(refSpace);
       vrRenderer.xr.setSession(session);
-      console.log('[VR] Session set on renderer');
+      console.log('[VR] XR session and reference space set');
 
       vrStatus.textContent = 'In VR session';
       vrStatus.className = 'vr-status supported';
 
       session.addEventListener('end', () => {
         currentXrSession = null;
+        console.log('[VR] Session ended');
         vrStatus.textContent = 'VR session ended';
         vrStatus.className = 'vr-status';
       });
