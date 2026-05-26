@@ -7,6 +7,10 @@ let vrTiles = [];
 let vrScene, vrCamera, vrRenderer;
 let vrScreenMesh, vrScreenTexture, vrScreenMaterial;
 let vrScreenCanvas = null;
+let vrDebugCanvas = null;
+let vrDebugTexture = null;
+let vrDebugMesh = null;
+let vrDebugLines = [];
 let vrIsVRMode = false;
 let vrOrbitAngle = { x: 0, y: 0 };
 let vrIsDragging = false;
@@ -323,6 +327,29 @@ function initVRModule() {
       vrEnterBtn.onclick = enterVR;
 
       checkWebXRSupport();
+      // ─── In-VR Debug Panel ─────────────────────────────────────
+      vrDebugCanvas = document.createElement('canvas');
+      vrDebugCanvas.width = 512;
+      vrDebugCanvas.height = 256;
+
+      vrDebugTexture = new THREE.CanvasTexture(vrDebugCanvas);
+      vrDebugTexture.minFilter = THREE.LinearFilter;
+      vrDebugTexture.magFilter = THREE.LinearFilter;
+
+      const debugMat = new THREE.MeshBasicMaterial({
+        map: vrDebugTexture,
+        transparent: true,
+        side: THREE.DoubleSide,
+        depthTest: true
+      });
+
+      const debugGeo = new THREE.PlaneGeometry(1.2, 0.6);
+      vrDebugMesh = new THREE.Mesh(debugGeo, debugMat);
+      vrDebugMesh.position.set(0, 1.3, screenZ + 0.02);
+      vrScene.add(vrDebugMesh);
+
+      updateDebugPanel();
+
       console.log('[VR] Scene initialized successfully');
     } catch (err) {
       console.error('[VR] Failed to initialize VR scene:', err);
@@ -377,6 +404,9 @@ function initVRModule() {
 
       updateScreenTexture(x, y);
     }
+
+    // Update in-VR debug panel
+    updateDebugPanel();
 
     vrRenderer.render(vrScene, vrCamera);
   }
@@ -436,6 +466,57 @@ function initVRModule() {
 
     // Mark texture for GPU upload
     vrScreenTexture.needsUpdate = true;
+  }
+
+  function updateDebugPanel() {
+    if (!vrDebugCanvas) return;
+    const ctx = vrDebugCanvas.getContext('2d');
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+    ctx.fillRect(0, 0, 512, 256);
+    ctx.strokeStyle = '#6c63ff';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(1, 1, 510, 254);
+
+    ctx.fillStyle = '#6c63ff';
+    ctx.font = 'bold 16px monospace';
+    ctx.fillText('VR DEBUG', 12, 24);
+
+    ctx.fillStyle = '#e0e0e8';
+    ctx.font = '13px monospace';
+    const lines = [
+      'Quilt: ' + (vrQuiltImage ? vrQuiltImage.naturalWidth + 'x' + vrQuiltImage.naturalHeight : 'NONE'),
+      'Grid: ' + vrCols + 'x' + vrRows + '  Tile: ' + vrTileW + 'x' + vrTileH,
+      'Tiles: ' + vrTiles.length,
+      'Screen: ' + (vrScreenCanvas ? vrScreenCanvas.width + 'x' + vrScreenCanvas.height : 'NONE'),
+      'Texture: ' + (vrScreenTexture ? 'OK' : 'NONE'),
+      'Scene: ' + (vrScene ? 'OK' : 'NONE'),
+      'Camera: ' + (vrCamera ? 'OK' : 'NONE'),
+      'Renderer: ' + (vrRenderer ? 'OK' : 'NONE'),
+      'Mesh: ' + (vrScreenMesh ? 'OK' : 'NONE'),
+      'Presenting: ' + (vrRenderer && vrRenderer.xr.isPresenting ? 'YES' : 'NO'),
+    ];
+
+    let y = 48;
+    for (const line of lines) {
+      ctx.fillText(line, 12, y);
+      y += 18;
+    }
+
+    if (vrCamera) {
+      y += 6;
+      ctx.fillStyle = '#ff6584';
+      ctx.fillText('Cam pos: ' + vrCamera.position.x.toFixed(2) + ', ' + vrCamera.position.y.toFixed(2) + ', ' + vrCamera.position.z.toFixed(2), 12, y);
+    }
+
+    if (vrScreenMesh) {
+      y += 18;
+      ctx.fillStyle = '#4ade80';
+      ctx.fillText('Screen at: ' + vrScreenMesh.position.x + ', ' + vrScreenMesh.position.y + ', ' + vrScreenMesh.position.z, 12, y);
+    }
+
+    if (vrDebugTexture) {
+      vrDebugTexture.needsUpdate = true;
+    }
   }
 
   async function enterVR() {
