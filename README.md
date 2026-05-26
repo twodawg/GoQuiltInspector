@@ -59,7 +59,7 @@ A quilt encodes multiple viewpoints of a scene into a single tiled image. Each t
 ## Tech Stack
 
 - Vanilla HTML/CSS/JS (single file)
-- Three.js r128 (CDN) for VR rendering
+- Three.js r152 (CDN) for VR rendering
 - WebXR API for Meta Quest immersive mode
 - Canvas API for tile extraction and parallax blending
 - MediaRecorder API for video export
