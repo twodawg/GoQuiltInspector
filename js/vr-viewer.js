@@ -6,13 +6,12 @@ let vrTileW = 0, vrTileH = 0;
 let vrTiles = [];
 let vrScene, vrCamera, vrRenderer;
 let vrScreenMesh, vrScreenTexture, vrScreenMaterial;
-let vrScreenCanvas = null; // Persistent canvas for texture updates
+let vrScreenCanvas = null;
 let vrIsVRMode = false;
 let vrOrbitAngle = { x: 0, y: 0 };
 let vrIsDragging = false;
 let vrLastMouse = { x: 0, y: 0 };
 let vrReady = false;
-let vrLastViewCol = -1, vrLastViewRow = -1; // Throttle texture updates
 
 // ─── Wait for Three.js ───────────────────────────────────────────
 function initVRModule() {
@@ -21,6 +20,7 @@ function initVRModule() {
     return;
   }
 
+  console.log('[VR] Three.js loaded, initializing VR module');
   vrReady = true;
 
   const vrUrlInput     = document.getElementById('vrUrl');
@@ -71,7 +71,7 @@ function initVRModule() {
     } catch (err) {
       vrStatus.textContent = 'Error: ' + err.message;
       vrStatus.className = 'vr-status unsupported';
-      console.error('Failed to load from blocks.glass:', err);
+      console.error('[VR] Failed to load from blocks.glass:', err);
 
       if (url.match(/\.(png|jpg|jpeg|webp)$/i)) {
         loadVRQuiltFromUrl(url);
@@ -110,6 +110,8 @@ function initVRModule() {
   }
 
   function processVRQuilt(filename) {
+    console.log('[VR] Processing quilt:', filename);
+
     const match = filename.match(/qs(\d+)x(\d+)a([\d.]+)/i);
     if (match) {
       vrCols = parseInt(match[1]);
@@ -121,8 +123,9 @@ function initVRModule() {
 
     vrTileW = Math.floor(vrQuiltImage.naturalWidth / vrCols);
     vrTileH = Math.floor(vrQuiltImage.naturalHeight / vrRows);
+    console.log('[VR] Grid:', vrCols, 'x', vrRows, 'Tile:', vrTileW, 'x', vrTileH);
 
-    // Clear old tiles to free GPU memory
+    // Clear old tiles
     vrTiles = [];
     for (let r = 0; r < vrRows; r++) {
       for (let c = 0; c < vrCols; c++) {
@@ -135,26 +138,24 @@ function initVRModule() {
         vrTiles.push(canvas);
       }
     }
+    console.log('[VR] Extracted', vrTiles.length, 'tiles');
 
     document.getElementById('vrQuiltName').textContent = filename.split('.').slice(0, -1).join('.');
-    document.getElementById('vrGrid').textContent = vrCols + ' × ' + vrRows;
+    document.getElementById('vrGrid').textContent = vrCols + ' x ' + vrRows;
     document.getElementById('vrTiles').textContent = vrCols * vrRows;
 
     vrEnterBtn.disabled = false;
-    vrOverlay.style.display = 'none';
+    if (vrOverlay) vrOverlay.style.display = 'none';
     setStatus('ready', 'VR quilt loaded');
 
-    // Reset throttling
-    vrLastViewCol = -1;
-    vrLastViewRow = -1;
-
-    // Delay scene init until next frame so the tab is visible
+    // Init scene after tab is visible
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         if (!vrRenderer) {
+          console.log('[VR] First scene init');
           initVRScene();
         } else {
-          // Rebuild screen texture with new quilt
+          console.log('[VR] Rebuilding texture on existing scene');
           rebuildScreenTexture();
         }
       });
@@ -164,32 +165,39 @@ function initVRModule() {
   // ─── Three.js Scene ────────────────────────────────────────────
   function initVRScene() {
     try {
-      console.log('Initializing VR scene...');
+      console.log('[VR] initVRScene called');
 
       const container = vrCanvas.parentElement;
-      const w = container.clientWidth || 800;
-      const h = container.clientHeight || 600;
+      const w = container.clientWidth;
+      const h = container.clientHeight;
 
-      if (w === 0 || h === 0) {
-        console.warn('Container has zero dimensions, deferring init');
-        setTimeout(initVRScene, 100);
+      if (!w || !h || w === 0 || h === 0) {
+        console.warn('[VR] Container has zero dimensions, deferring init');
+        setTimeout(initVRScene, 200);
         return;
       }
 
-      // Clean up old renderer if exists
+      console.log('[VR] Container size:', w, 'x', h);
+
+      // Clean up old renderer
       if (vrRenderer) {
-        if (vrRenderer.xr.isPresenting) {
-          vrRenderer.xr.getSession()?.end();
-        }
+        try {
+          const session = vrRenderer.xr.getSession();
+          if (session) session.end();
+        } catch(e) {}
         vrRenderer.dispose();
+        vrRenderer = null;
       }
 
+      // Scene
       vrScene = new THREE.Scene();
       vrScene.background = new THREE.Color(0x111118);
 
+      // Camera — positioned in front of screen (positive z)
       vrCamera = new THREE.PerspectiveCamera(70, w / h, 0.01, 100);
       vrCamera.position.set(0, 0, 1.5);
 
+      // Renderer
       vrRenderer = new THREE.WebGLRenderer({
         canvas: vrCanvas,
         antialias: true,
@@ -199,6 +207,7 @@ function initVRModule() {
       vrRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       vrRenderer.setSize(w, h);
       vrRenderer.xr.enabled = true;
+      console.log('[VR] Renderer created, size:', w, 'x', h);
 
       // Lighting
       const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
@@ -207,19 +216,23 @@ function initVRModule() {
       dirLight.position.set(0, 0, 3);
       vrScene.add(dirLight);
 
-      // Screen
+      // Screen dimensions
       const screenSize = parseFloat(document.getElementById('vrScreenSize').value) || 2;
       const aspect = vrTileW / vrTileH;
       const screenW = screenSize;
       const screenH = screenSize / aspect;
       const screenZ = -1.5;
 
+      console.log('[VR] Screen: ', screenW, 'x', screenH, 'at z=', screenZ);
+
+      // Screen mesh
       const screenGeometry = new THREE.PlaneGeometry(screenW, screenH);
 
-      // Create persistent canvas for texture
+      // Persistent canvas for texture
       vrScreenCanvas = document.createElement('canvas');
       vrScreenCanvas.width = vrTileW;
       vrScreenCanvas.height = vrTileH;
+      console.log('[VR] Texture canvas:', vrTileW, 'x', vrTileH);
 
       vrScreenTexture = new THREE.CanvasTexture(vrScreenCanvas);
       vrScreenTexture.minFilter = THREE.LinearFilter;
@@ -236,8 +249,9 @@ function initVRModule() {
       vrScreenMesh.userData.screenW = screenW;
       vrScreenMesh.userData.screenH = screenH;
       vrScene.add(vrScreenMesh);
+      console.log('[VR] Screen mesh added at (0, 0,', screenZ, ')');
 
-      // Frame border
+      // Frame border (behind screen)
       const frameGeometry = new THREE.PlaneGeometry(screenW + 0.08, screenH + 0.08);
       const frameMaterial = new THREE.MeshBasicMaterial({
         color: 0x6c63ff,
@@ -265,10 +279,13 @@ function initVRModule() {
       gridHelper.position.set(0, -1.99, screenZ);
       vrScene.add(gridHelper);
 
-      // Draw initial frame
+      // Draw initial frame on texture
       rebuildScreenTexture();
+      console.log('[VR] Initial texture drawn');
 
+      // Start render loop
       vrRenderer.setAnimationLoop(renderVRFrame);
+      console.log('[VR] Animation loop started');
 
       // Desktop orbit controls
       vrCanvas.addEventListener('mousedown', e => {
@@ -306,23 +323,29 @@ function initVRModule() {
       vrEnterBtn.onclick = enterVR;
 
       checkWebXRSupport();
+      console.log('[VR] Scene initialized successfully');
     } catch (err) {
-      console.error('Failed to initialize VR scene:', err);
+      console.error('[VR] Failed to initialize VR scene:', err);
       vrStatus.textContent = 'Error: ' + err.message;
       vrStatus.className = 'vr-status unsupported';
     }
   }
 
   function rebuildScreenTexture() {
-    if (!vrScreenCanvas || vrTiles.length === 0) return;
+    if (!vrScreenCanvas || vrTiles.length === 0) {
+      console.warn('[VR] rebuildScreenTexture: no canvas or tiles');
+      return;
+    }
     const ctx = vrScreenCanvas.getContext('2d');
     const centerIdx = Math.floor((vrRows * vrCols) / 2);
     ctx.clearRect(0, 0, vrTileW, vrTileH);
     if (vrTiles[centerIdx]) {
       ctx.drawImage(vrTiles[centerIdx], 0, 0);
+      console.log('[VR] Drew center tile', centerIdx, 'to texture');
     } else {
       ctx.fillStyle = '#6c63ff';
       ctx.fillRect(0, 0, vrTileW, vrTileH);
+      console.warn('[VR] No center tile found, drew fallback color');
     }
     if (vrScreenTexture) {
       vrScreenTexture.needsUpdate = true;
@@ -342,13 +365,14 @@ function initVRModule() {
       const relY = camPos.y - screenCenter.y;
       updateScreenTexture(relX, relY);
     } else {
-      // Desktop mode: orbit camera
+      // Desktop mode: orbit camera IN FRONT of screen
       const distance = parseFloat(document.getElementById('vrDistance').value) || 1.5;
       const x = Math.sin(vrOrbitAngle.x) * Math.cos(vrOrbitAngle.y) * distance;
       const y = Math.sin(vrOrbitAngle.y) * distance;
       const z = Math.cos(vrOrbitAngle.x) * Math.cos(vrOrbitAngle.y) * distance;
 
-      vrCamera.position.set(x, y, -z);
+      // Camera at positive z, looking at screen at negative z
+      vrCamera.position.set(x, y, z);
       vrCamera.lookAt(screenCenter);
 
       updateScreenTexture(x, y);
@@ -364,23 +388,17 @@ function initVRModule() {
     const screenH = vrScreenMesh.userData.screenH;
 
     // Map camera position to normalized viewport (0..1)
+    // Camera at positive X = looking from right = show left view
     const normX = 0.5 - (cameraX / screenW) * 0.5;
     const normY = 0.5 + (cameraY / screenH) * 0.5;
 
-    // Clamp to valid range
+    // Clamp
     const clampedX = Math.max(0, Math.min(1, normX));
     const clampedY = Math.max(0, Math.min(1, normY));
 
     // Convert to grid coordinates
     const viewCol = clampedX * (vrCols - 1);
     const viewRow = (1 - clampedY) * (vrRows - 1);
-
-    // Throttle: only redraw if the viewpoint index changed
-    const colIdx = Math.round(viewCol);
-    const rowIdx = Math.round(viewRow);
-    if (colIdx === vrLastViewCol && rowIdx === vrLastViewRow) return;
-    vrLastViewCol = colIdx;
-    vrLastViewRow = rowIdx;
 
     // Bilinear interpolation between 4 adjacent tiles
     const c0 = Math.floor(viewCol);
@@ -390,18 +408,30 @@ function initVRModule() {
     const fc = viewCol - c0;
     const fr = viewRow - r0;
 
+    const tileIdx00 = r0 * vrCols + c0;
+    const tileIdx10 = r0 * vrCols + c1;
+    const tileIdx01 = r1 * vrCols + c0;
+    const tileIdx11 = r1 * vrCols + c1;
+
+    // Validate tile indices
+    if (tileIdx00 >= vrTiles.length || tileIdx10 >= vrTiles.length ||
+        tileIdx01 >= vrTiles.length || tileIdx11 >= vrTiles.length) {
+      console.warn('[VR] Tile index out of bounds:', tileIdx00, tileIdx10, tileIdx01, tileIdx11, 'total:', vrTiles.length);
+      return;
+    }
+
     const ctx = vrScreenCanvas.getContext('2d');
     ctx.clearRect(0, 0, vrTileW, vrTileH);
 
     // Blend 4 tiles
     ctx.globalAlpha = (1 - fc) * (1 - fr);
-    ctx.drawImage(vrTiles[r0 * vrCols + c0], 0, 0);
+    ctx.drawImage(vrTiles[tileIdx00], 0, 0);
     ctx.globalAlpha = fc * (1 - fr);
-    ctx.drawImage(vrTiles[r0 * vrCols + c1], 0, 0);
+    ctx.drawImage(vrTiles[tileIdx10], 0, 0);
     ctx.globalAlpha = (1 - fc) * fr;
-    ctx.drawImage(vrTiles[r1 * vrCols + c0], 0, 0);
+    ctx.drawImage(vrTiles[tileIdx01], 0, 0);
     ctx.globalAlpha = fc * fr;
-    ctx.drawImage(vrTiles[r1 * vrCols + c1], 0, 0);
+    ctx.drawImage(vrTiles[tileIdx11], 0, 0);
     ctx.globalAlpha = 1.0;
 
     // Mark texture for GPU upload
@@ -436,7 +466,7 @@ function initVRModule() {
         vrStatus.className = 'vr-status';
       });
     } catch (err) {
-      console.error('Failed to enter VR:', err);
+      console.error('[VR] Failed to enter VR:', err);
       vrStatus.textContent = 'VR Error: ' + err.message;
       vrStatus.className = 'vr-status unsupported';
     }
@@ -444,7 +474,7 @@ function initVRModule() {
 
   function checkWebXRSupport() {
     if (!navigator.xr) {
-      vrStatus.textContent = 'WebXR not available — desktop preview only';
+      vrStatus.textContent = 'WebXR not available - desktop preview only';
       vrStatus.className = 'vr-status unsupported';
       vrEnterBtn.disabled = true;
       return;
@@ -452,10 +482,10 @@ function initVRModule() {
 
     navigator.xr.isSessionSupported('immersive-vr').then(supported => {
       if (supported) {
-        vrStatus.textContent = 'WebXR supported — VR mode available';
+        vrStatus.textContent = 'WebXR supported - VR mode available';
         vrStatus.className = 'vr-status supported';
       } else {
-        vrStatus.textContent = 'Immersive VR not supported — desktop preview only';
+        vrStatus.textContent = 'Immersive VR not supported - desktop preview only';
         vrStatus.className = 'vr-status unsupported';
         vrEnterBtn.disabled = true;
       }
