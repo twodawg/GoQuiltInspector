@@ -172,11 +172,13 @@ function initVRModule() {
       vrCamera = new THREE.PerspectiveCamera(70, w / h, 0.01, 100);
       vrCamera.position.set(0, 0, 1.5);
 
-      // Renderer
+      // Renderer — CRITICAL: xrCompatible: true required for Quest browser after 2025 Meta updates
+      // Without this, makeXRCompatible() fails silently and XR renders nothing (star field)
       vrRenderer = new THREE.WebGLRenderer({
         canvas: vrCanvas,
         antialias: false,
-        alpha: false
+        alpha: false,
+        xrCompatible: true
       });
       vrRenderer.setPixelRatio(1);
       vrRenderer.setSize(w, h, false);
